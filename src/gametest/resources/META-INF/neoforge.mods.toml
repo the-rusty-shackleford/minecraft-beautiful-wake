@@ -1,0 +1,21 @@
+# The photo booth is a mod of its own so it is never shipped. Loaded by the
+# photoBooth run only.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="AGPL-3.0-or-later"
+
+[[mods]]
+modId="beautifulwake_gametest"
+version="1.0.0"
+displayName="Beautiful Wake Booth"
+authors="Rusty Shackleford"
+description='''
+The photo booth: a pool, a boat, and pictures of its wake.
+'''
+
+[[dependencies.beautifulwake_gametest]]
+    modId="beautifulwake"
+    type="required"
+    versionRange="[1.0,)"
+    ordering="AFTER"
+    side="CLIENT"

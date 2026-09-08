@@ -1,0 +1,192 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.144'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Mojang ships Java 21 to end users in 1.21.1, so mods must target Java 21.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// ModDevGradle registers only the NeoForged and Mojang repositories. JUnit
+// lives on Central.
+repositories {
+    mavenCentral()
+}
+
+// Three layers, one direction of dependency:
+//
+//   domain   <--  main (adapters)  <--  gametest (a real server)
+//     ^
+//     +----  test (plain JUnit; no Minecraft on its classpath at all)
+//
+// `domain` is the pure layer: what a wake is -- how strong at a speed, how
+// wide and how faint with age, where its quads go -- over plain numbers. It
+// is compiled against nothing but the JDK, so a `net.minecraft` import there
+// is a compile error rather than something a reviewer has to catch.
+// `gametest` is the only source set besides `main` that receives the modding
+// dependencies; `test` never does.
+sourceSets {
+    domain
+    gametest
+}
+
+// The booth has its own game directory, run/booth: its saves and screenshots
+// stay apart from any other run's. The booth makes its own world (flat, a
+// pool dug into it) and its own boat, so there are no fixtures to write;
+// only the old photos are cleared so a missing one is noticed.
+var prepareBooth = tasks.register("prepareBooth") {
+    def booth = layout.projectDirectory.dir('run/booth').asFile
+    // Never up to date: the save must go every time, or the game reopens
+    // the last run's world -- pool, drops, cows and all -- under the fresh
+    // world's name.
+    outputs.upToDateWhen { false }
+    doLast {
+        new File(booth, 'screenshots').deleteDir()
+        new File(booth, 'saves').deleteDir()
+    }
+}
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        // The client-side check: makes a flat world with a pool, runs a
+        // boat through it at several speeds, photographs the wake from above
+        // and from the water, checks that a wake exists where it should and
+        // not where it should not, and quits -- see WakeBooth in the gametest
+        // source set. Needs a display.
+        photoBooth {
+            client()
+            sourceSet = sourceSets.gametest
+            gameDirectory = file('run/booth')
+            systemProperty 'beautifulwake.photobooth', 'true'
+            taskBefore prepareBooth
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.domain)
+            sourceSet(sourceSets.main)
+        }
+        // The gametests are a mod of their own, as in the sibling repos: they
+        // exercise the mod from outside, as a pack would, and carry the photo
+        // booth, which is never shipped.
+        "${mod_id}_gametest" {
+            sourceSet(sourceSets.gametest)
+        }
+    }
+
+    // Deliberately not `domain` and not `test` -- see the layering comment.
+    addModdingDependenciesTo(sourceSets.gametest)
+}
+
+// The gametest mod is for the gametest run and the photo booth only.
+neoForge.runs.matching { it.name != 'photoBooth' }.configureEach {
+    loadedMods = neoForge.mods.matching { it.name != "${mod_id}_gametest" }
+}
+
+dependencies {
+    implementation sourceSets.domain.output
+
+    gametestImplementation sourceSets.main.output
+    gametestImplementation sourceSets.domain.output
+
+    // Plain JUnit 5 against the pure layer only. Gradle 9 no longer injects
+    // the platform launcher, so it is declared.
+    testImplementation sourceSets.domain.output
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.2'
+    testRuntimeOnly    'org.junit.jupiter:junit-jupiter-engine:5.9.2'
+    testRuntimeOnly    'org.junit.platform:junit-platform-launcher:1.9.2'
+}
+
+tasks.named('test', Test) {
+    // Gradle enables -ea for Test tasks by default; the domain layer's rep
+    // invariants are `assert`s and rely on it.
+    useJUnitPlatform()
+}
+
+// The shipped jar is main + domain. gametest is never shipped.
+jar {
+    from sourceSets.domain.output
+}
+
+// A client-only mod has nothing for the gametest server to run: the booth
+// is the check. Its exit code is the game's, not the assertions', so the
+// gate reads the booth's own verdict lines from the log and fails without
+// a PASS or with any FAIL. `check` runs it unless asked not to
+// (`-PskipBooth`, for a box without a display).
+tasks.named('runPhotoBooth') { task ->
+    def logFile = layout.projectDirectory.file('run/booth/logs/latest.log').asFile
+    task.doLast {
+        def text = logFile.exists() ? logFile.text : ''
+        if (text =~ /Missing or unsupported mandatory|Mod loading has failed/) {
+            throw new GradleException("booth: the loader refused a mod; see ${logFile}")
+        }
+        def failures = text.readLines().findAll { it.contains('booth: FAIL') }
+        if (!failures.isEmpty()) {
+            throw new GradleException("booth: ${failures.size()} failed check(s):\n" + failures.join('\n'))
+        }
+        if (!(text =~ /booth: PASS/)) {
+            throw new GradleException("booth: no verdict in ${logFile} -- the booth never ran")
+        }
+        task.logger.lifecycle("booth: " + (text =~ /booth: PASS.*/)[0])
+    }
+}
+if (!project.hasProperty('skipBooth')) {
+    tasks.named('check') {
+        dependsOn 'runPhotoBooth'
+    }
+}
+
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
