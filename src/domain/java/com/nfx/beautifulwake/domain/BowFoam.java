@@ -86,6 +86,8 @@ public final class BowFoam {
     public static final int MAX_BUBBLES = 220;
     /** Above this intensity the bow throws bubbles. */
     public static final double FROM = 0.25;
+    /** The biggest a bubble can be, in blocks: a sixth of a block, not a snowball. */
+    public static final double MAX_SIZE = 0.16;
 
     private final List<Bubble> bubbles = new ArrayList<>();
 
@@ -135,9 +137,9 @@ public final class BowFoam {
             double across = stern ? side * hull * 0.35 * random.nextDouble() : side * hull * (0.42 + 0.16 * random.nextDouble());
             double up = (stern ? 0.03 : 0.05 + 0.13 * random.nextDouble()) * push;
             double out = stern ? 0.0 : side * (0.01 + 0.05 * random.nextDouble()) * push;
-            // A cloud of small ones with the odd big one.
+            // A cloud of small ones with the odd bigger one -- never a snowball.
             double roll = random.nextDouble();
-            double size = (0.07 + 0.1 * roll * roll * roll + (roll > 0.92 ? 0.14 : 0.0)) * (0.7 + 0.3 * intensity);
+            double size = (0.04 + 0.06 * roll * roll * roll + (roll > 0.93 ? 0.06 : 0.0)) * (0.7 + 0.3 * intensity);
             int life = MIN_LIFE + random.nextInt(MAX_LIFE - MIN_LIFE + 1);
             bubbles.add(new Bubble(x + hx * along + px * across, surfaceY + 0.02, z + hz * along + pz * across,
                     hx * 0.02 + px * out, up, hz * 0.02 + pz * out, size, now, life));

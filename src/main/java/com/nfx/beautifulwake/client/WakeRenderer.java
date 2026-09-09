@@ -224,7 +224,8 @@ public final class WakeRenderer {
     /**
      * One pass over the mesh: a quad between every pair of neighbouring
      * rows and columns, each vertex with the pass's texture coordinates and
-     * alpha, its own normal, and the light on the water at its row.
+     * alpha, its own normal, and the light on the water at its row. Every
+     * quad is wound counter-clockwise seen from above.
      */
     private static int drawMesh(VertexConsumer consumer, PoseStack pose, ClientLevel level, WakeMesh.Mesh mesh, Pass pass) {
         List<List<WakeMesh.Vertex>> rows = mesh.rows();
@@ -250,10 +251,14 @@ public final class WakeRenderer {
                 if (alpha(a, pass) == 0 && alpha(b, pass) == 0 && alpha(c, pass) == 0 && alpha(d, pass) == 0) {
                     continue;
                 }
+                // Wound counter-clockwise seen from above, so the face is
+                // front-facing from above: a shader pack that flips the
+                // normal of a back face (Complementary does) would otherwise
+                // light the whole wake from below and draw it dark.
                 vertex(consumer, last, a, pass, light[r]);
-                vertex(consumer, last, b, pass, light[r]);
-                vertex(consumer, last, c, pass, light[r + 1]);
                 vertex(consumer, last, d, pass, light[r + 1]);
+                vertex(consumer, last, c, pass, light[r + 1]);
+                vertex(consumer, last, b, pass, light[r]);
                 drawn++;
             }
         }
@@ -388,7 +393,8 @@ public final class WakeRenderer {
         float x = (float) ripple.x();
         float y = (float) (ripple.surfaceY() + lift);
         float z = (float) ripple.z();
-        float[][] corners = {{-radius, -radius, 0, 0}, {radius, -radius, 1, 0}, {radius, radius, 1, 1}, {-radius, radius, 0, 1}};
+        // Counter-clockwise seen from above, as the mesh's quads are, for the same reason.
+        float[][] corners = {{-radius, -radius, 0, 0}, {-radius, radius, 0, 1}, {radius, radius, 1, 1}, {radius, -radius, 1, 0}};
         for (int i = 0; i < 4; i++) {
             float[] c = corners[i];
             float[] uv = corners[(i + quarterTurns) % 4];

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Partitions. Count: below the start, at full, between (grows faster than
  * linearly), bad arguments. Throwing: none, some, more than the cap; both
- * shoulders; up and outward; bigger with intensity. Ticking: rising,
+ * shoulders; up and outward; bigger with intensity, never past the cap, mostly small. Ticking: rising,
  * falling, settling on the water and staying, dying; alpha whole then
  * fading; clearing. Bad bubbles.
  */
@@ -74,6 +74,14 @@ final class BowFoamTest {
         }
         assertTrue(port && starboard);
         assertTrue(fromTheBow > 20, "most from the bow, had " + fromTheBow);
+        double biggest = 0.0;
+        double sum = 0.0;
+        for (BowFoam.Bubble b : foam.bubbles()) {
+            biggest = Math.max(biggest, b.size());
+            sum += b.size();
+        }
+        assertTrue(biggest <= BowFoam.MAX_SIZE, "never a snowball, biggest was " + biggest);
+        assertTrue(sum / foam.bubbles().size() < 0.08, "most are small, mean was " + sum / foam.bubbles().size());
     }
 
     @Test

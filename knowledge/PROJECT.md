@@ -57,7 +57,10 @@ world; D-0003 the cel-shaded flat look (superseded); D-0004 the wake as
 a surface in relief with the Wind Waker treatment, after Rusty's "2D,
 flat, messy" verdict and the King of Red Lions screenshot; D-0005 pixel
 foam at the game's density, animated, the wake scaled to a rowboat, a
-splash foaming by its weight, the nose hidden under the body.
+splash foaming by its weight, the nose hidden under the body; D-0006
+quads wound counter-clockwise from above (Complementary flips a back
+face's normal), the booth able to run under Sodium, Iris and the pack's
+shaders on llvmpipe.
 
 ## Next
 
@@ -69,6 +72,8 @@ booth act. 2.0.0 the same day after "the wake is 2D, its fuckin flat ... the whi
 doesn't even look like foam" and "Compare to windwaker": the relief, the
 pale edged sheet, chevron lines, bubble foam, the bow burst, the pointed
 outline (D-0004). 2.1.0 after "a bit too large", the splash-foam ask, the wader and bow
-screenshots and the triangle report (D-0005). Open: the look in the
-pack under Iris, which only Rusty can judge; the outer sheet on a hard
-turn; a ring that is not a perfect circle.
+screenshots and the triangle report (D-0005). 2.1.2 after "the white foam behind the boats is gray with the shaders":
+the booth run under Complementary showed it, the winding was the cause
+(D-0006); bubbles capped at a sixth of a block ("where are the snowballs
+coming from"). Open: the outer sheet on a hard turn; a ring that is not
+a perfect circle.

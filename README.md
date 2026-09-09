@@ -106,10 +106,14 @@ its chunk, spawned there) did not fall in and splashes nothing.
 
 The sheet, the lines, the foam and the bubbles are custom geometry in the
 translucent pass, lit by the water's light and shaded by their own normals.
-Vanilla and Sodium are fine with that; Iris shader packs usually are, but a
-pack can light entity geometry its own way, and then `wake.skin`,
-`wake.lines` and `wake.foam` are the switches and `wake.relief` the dial.
-Spray and splashes are particles and are always fine.
+Vanilla and Sodium are fine with that, and so is Complementary under Iris,
+which the booth can photograph (below). Every quad on the water is wound
+counter-clockwise seen from above: Complementary flips the normal of a
+back face before lighting it, and a wake wound the other way is lit from
+below and drawn dark. Another pack can still light entity geometry its own
+way, and then `wake.skin`, `wake.lines` and `wake.foam` are the switches
+and `wake.relief` the dial. Spray and splashes are particles and are
+always fine.
 
 ## Building
 
@@ -128,6 +132,16 @@ hard over -- photographs each into `run/booth/screenshots/` and writes one
 reads. It needs a display; headless, `DISPLAY=:1 Xephyr :7 -screen 1280x720
 -ac -br -noreset` then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa
 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe ./gradlew runPhotoBooth`.
+
+To photograph under the pack's shaders, put Sodium and Iris (NeoForge
+builds) in `run/booth/mods`, the shader pack and its `.txt` of settings in
+`run/booth/shaderpacks`, `enableShaders=true` and `shaderPack=<zip>` in
+`run/booth/config/iris.properties`, and add `MESA_GL_VERSION_OVERRIDE=4.6
+MESA_GLSL_VERSION_OVERRIDE=460` to the environment so Sodium accepts the
+software renderer. It takes a few minutes, the booth waits for the pool's
+chunks to be rebuilt before its first photo, and the checks that time a
+speed may trip under the slow renderer; the photos are what it is for.
+Take the two jars out of `run/booth/mods` again before `./gradlew build`.
 
 Layout: `src/domain` is the pure layer, compiled against nothing but the JDK
 -- `Wake` (intensity from speed, fade, spray), `Trail` (a craft's samples

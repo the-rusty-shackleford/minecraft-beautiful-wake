@@ -96,6 +96,10 @@ public final class WakeBooth {
     private static Phase phase = Phase.TITLE;
     private static int tick = 0;
     private static List<Step> steps;
+    /** The tick the clock waits at for the pool's chunks to be rebuilt, after the rebuild was asked for at tick 10. */
+    private static final int GATE = 40;
+    private static final long GATE_LIMIT_MS = 75_000L;
+    private static long gateOpened = 0L;
     private static Boat boat;
     private static Cow cow;
     /** Whether the script still moves the boat; the second act hands it to the player. */
@@ -126,6 +130,21 @@ public final class WakeBooth {
                 }
             }
             case RUNNING -> {
+                // The pool went in after the client had its chunks, and a
+                // software renderer -- slower still under a shader pack, and
+                // running ten ticks a frame to catch up -- may not have
+                // rebuilt them by the time the first photo is due. Hold the
+                // clock at the gate until every section over the pool is
+                // compiled, or a wall-clock limit passes.
+                if (tick == GATE && !poolCompiled(mc)) {
+                    if (gateOpened == 0L) {
+                        gateOpened = System.currentTimeMillis();
+                    }
+                    if (System.currentTimeMillis() - gateOpened < GATE_LIMIT_MS) {
+                        return;
+                    }
+                    LOG.warn("booth: the pool's sections were not all compiled after {} s; going on", GATE_LIMIT_MS / 1000);
+                }
                 onServer(mc, WakeBooth::drive);
                 for (Step step : steps) {
                     if (step.at() == tick) {
@@ -136,6 +155,18 @@ public final class WakeBooth {
             }
             case DONE -> { }
         }
+    }
+
+    /** Whether every render section over the pool has been compiled, sampled every eight blocks. */
+    private static boolean poolCompiled(Minecraft mc) {
+        for (int x = POOL_X0; x <= POOL_X1; x += 8) {
+            for (int z = POOL_Z0; z <= POOL_Z1; z += 8) {
+                if (!mc.levelRenderer.isSectionCompiled(new BlockPos(x, GRASS_Y, z))) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private static void createWorld(Minecraft mc) {
