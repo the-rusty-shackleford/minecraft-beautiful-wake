@@ -42,8 +42,8 @@ modpack as a client-only file.
 
 ## How it is verified
 
-`./gradlew build`: 58 JUnit tests on `domain`; the booth's nine checks and
-twelve photographs (`-PskipBooth` to omit), the last four of them the
+`./gradlew build`: 62 JUnit tests on `domain`; the booth's ten checks and
+thirteen photographs (`-PskipBooth` to omit), the last four of them the
 booth's own player wading and driving; the at-speed checks assert relief
 (a bow wave over a tenth of a block, a leaning normal) and bubbles. The
 look is judged from the booth's photos and in the pack. A mesh build is
@@ -75,5 +75,10 @@ outline (D-0004). 2.1.0 after "a bit too large", the splash-foam ask, the wader 
 screenshots and the triangle report (D-0005). 2.1.2 after "the white foam behind the boats is gray with the shaders":
 the booth run under Complementary showed it, the winding was the cause
 (D-0006); bubbles capped at a sixth of a block ("where are the snowballs
-coming from"). Open: the outer sheet on a hard turn; a ring that is not
-a perfect circle.
+coming from"). 2.2.0: chevrons pinned to the water by each sample's arc (a sharp turn
+no longer swings the old wake), no wake dragged under a diver or after a
+flier, the intensity ramp a curve with no floor ("snapped in"), the
+swimmer's wake from twice the body's width at full strength, every quad
+culled so a shader pack never sees a back face. Open: a player's wake
+reported dark under Complementary from a view the booth has not
+reproduced; a ring that is not a perfect circle.

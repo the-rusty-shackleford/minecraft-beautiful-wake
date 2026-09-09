@@ -31,7 +31,10 @@ import java.util.List;
  * the V to the other, the same number of columns in every row, so the grid
  * fans out with the V and quads join neighbouring rows column by column.
  * The bow's row is the newest sample; distance behind the bow is the
- * track distance to it, so the pattern bends with the track.
+ * track distance to it, so the pattern bends with the track. The
+ * chevrons' phase, though, is measured from each sample's own arc along
+ * the track, which never changes: a ridge stays where the water made it
+ * while the hull moves on and turns, and new ridges form behind the hull.
  *
  * <p>No vertex is ever below the water's still level plus the lift:
  * crests rise, and where the field dips the surface is drawn level and
@@ -170,12 +173,12 @@ public final class WakeMesh {
         double noseLength = hull * p.nose();
         for (double ahead : AHEAD) {
             rows.add(row(head.x() + heading[0] * ahead * noseLength, head.surfaceY(), head.z() + heading[1] * ahead * noseLength,
-                    heading, -ahead * noseLength, head.tick(), headIntensity, 0L, p, columns, 0.0, table));
+                    heading, -ahead * noseLength, head.arc() + ahead * noseLength, head.tick(), headIntensity, 0L, p, columns, 0.0, table));
         }
         for (int i = n - 1; i >= 0; i--) {
             Sample s = apart.get(i);
             long age = Math.max(0L, tickNow - s.tick());
-            rows.add(row(s.x(), s.surfaceY(), s.z(), heading(apart, i), behind[i], s.tick(), intensityAt(samples, index.get(i), p), age, p,
+            rows.add(row(s.x(), s.surfaceY(), s.z(), heading(apart, i), behind[i], s.arc(), s.tick(), intensityAt(samples, index.get(i), p), age, p,
                     columns, curvature(apart, i), table));
         }
         for (List<Vertex> row : rows) {
@@ -195,7 +198,7 @@ public final class WakeMesh {
      * {@code curvature} (positive turning to starboard), only as far as the
      * turn's radius allows before rows would fold over one another.
      */
-    private static List<Vertex> row(double cx, double surfaceY, double cz, double[] heading, double d, long tick,
+    private static List<Vertex> row(double cx, double surfaceY, double cz, double[] heading, double d, double arc, long tick,
                                     double intensity, long age, WakeParams p, int columns, double curvature, WakeTable table) {
         double hull = p.hullWidth();
         double px = -heading[1];   // starboard
@@ -216,23 +219,35 @@ public final class WakeMesh {
         for (int j = 0; j < columns; j++) {
             double s = j < side ? -portHalf * (side - j) / side : starboardHalf * (j - side) / side;
             double scale = intensity * p.relief() * p.size();
+            // The chevrons' phase is measured from a point fixed in the
+            // water -- the sample's arc, which never changes -- so the ridges
+            // stay where they were made as the hull moves on and turns; only
+            // their height follows the hull, through the envelope.
+            double phase = WakeField.chevronPhase(-arc, s);
+            double cos = Math.cos(2.0 * Math.PI * phase);
+            double sin = Math.sin(2.0 * Math.PI * phase);
+            double envelope = table.envelope(d, s);
             // Crests stand up; troughs are shaded by their normals but drawn
             // level, never below the lift: a shader pack's water surface
             // waves a little under the still level, and a sheet that dipped
             // through it flickered along the cut.
-            double h = Math.max(0.0, scale * table.height(d, s));
+            double h = Math.max(0.0, scale * (table.base(d, s) + envelope * cos));
             double foam = Math.min(1.0, Math.sqrt(intensity) * table.foam(d, s)) * ageFade;
             // The normal from the slope along and across the track; d runs
-            // backward along the track, so a rise with d falls along the heading.
-            double hd = scale * table.slopeD(d, s);
-            double hs = scale * table.slopeS(d, s);
+            // backward along the track, so a rise with d falls along the
+            // heading. A step back along the track is a step down the arc,
+            // so the phase changes with d as it did when measured from the hull.
+            double hd = scale * (table.baseD(d, s) + table.envelopeD(d, s) * cos
+                    - envelope * 2.0 * Math.PI * sin * WakeField.chevronPhasePerBlockBack());
+            double hs = scale * (table.baseS(d, s) + table.envelopeS(d, s) * cos
+                    - envelope * 2.0 * Math.PI * sin * Math.signum(s) * WakeField.chevronPhasePerBlockOut());
             double nx = hd * heading[0] - hs * px;
             double nz = hd * heading[1] - hs * pz;
             double len = Math.sqrt(nx * nx + 1.0 + nz * nz);
             double edgeFade = WakeField.edgeFade(hull, p.nose(), d, s);
             double skin = edgeFade * ageFade * intensity;
             float edge = (float) Math.max(EDGE_INSIDE, Math.abs(s) - WakeField.halfWidth(hull, p.nose(), d));
-            float chevron = (float) WakeField.chevronPhase(d, s);
+            float chevron = (float) phase;
             double lines = skin * chevronStart * Math.exp(-Math.max(0.0, d) / WakeField.CHEVRON_DECAY);
             row.add(new Vertex(cx + px * s, surfaceY + p.lift() + h, cz + pz * s, nx / len, 1.0 / len, nz / len,
                     edge, chevron, (float) (s / FOAM_TILE), (float) (tick / p.textureTicks()),

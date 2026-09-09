@@ -34,7 +34,8 @@ import org.junit.jupiter.api.Test;
  * upright on flat water, leaning on a slope. Skin and foam: inside the V,
  * none outside, fading with age. Mappings: the edge coordinate zero on the
  * V's edge and clamped inside, the chevron lines hidden before the
- * chevrons start and the phase continuous, the foam pinned to the tick. A curved track bends the
+ * chevrons start and the phase continuous and pinned to the water, the
+ * foam pinned to the tick. A curved track bends the
  * grid; a tight turn holds the inside short. Shade: flat, toward, away,
  * clamped, on a mesh. Size: fades sooner, stands lower, as wide at the
  * hull. A trail at rest makes no mesh.
@@ -44,11 +45,11 @@ final class WakeMeshTest {
     private static final WakeTable T = WakeTable.of(1.4, WakeField.HULL_NOSE);
     private static final int COLUMNS = 25;
 
-    /** A straight run east at {@code speed} for {@code ticks}, the newest sample at tick {@code ticks}. */
+    /** A straight run east at {@code speed} for {@code ticks}, the newest sample at tick {@code ticks}, the arc as a trail would set it. */
     private static List<Sample> run(double speed, int ticks) {
         List<Sample> samples = new ArrayList<>();
         for (int t = 0; t <= ticks; t++) {
-            samples.add(new Sample(t * speed, 63.0, 0.0, t));
+            samples.add(new Sample(t * speed, 63.0, 0.0, t, t * speed));
         }
         return samples;
     }
@@ -190,9 +191,34 @@ final class WakeMeshTest {
             assertTrue(Math.abs(step) < 0.5f, "phase steps by a fraction of a wavelength per row, was " + step);
         }
         WakeMesh.Vertex far = mesh.rows().get(mesh.rows().size() - 1).get(COLUMNS / 2);
-        assertTrue(far.chevron() > 1.0f, "phase far back, was " + far.chevron());
+        WakeMesh.Vertex bow = mesh.rows().get(5).get(COLUMNS / 2);
+        assertEquals(0.0f, far.chevron(), 1e-6f, "the oldest sample began the track: phase zero");
+        assertTrue(bow.chevron() < -1.0f, "the hull is many wavelengths along, was " + bow.chevron());
         assertEquals((float) (0 / P.textureTicks()), far.foamV(), "the oldest sample is tick 0");
         assertEquals((float) (80 / P.textureTicks()), mesh.rows().get(5).get(COLUMNS / 2).foamV());
+    }
+
+    @Test
+    void theChevronsStayWhereTheWaterMadeThemAsTheHullMovesOn() {
+        // The row over the sample at tick 40 keeps its phase whether the hull is at tick 60 or tick 90.
+        WakeMesh.Mesh early = WakeMesh.build(run(0.4, 60), 60, P, COLUMNS, T);
+        WakeMesh.Mesh late = WakeMesh.build(run(0.4, 90), 90, P, COLUMNS, T);
+        WakeMesh.Vertex earlyRow = rowOver(early, 40 * 0.4).get(COLUMNS / 2);
+        WakeMesh.Vertex lateRow = rowOver(late, 40 * 0.4).get(COLUMNS / 2);
+        assertEquals(earlyRow.chevron(), lateRow.chevron(), 1e-6f, "the phase is the water's, not the hull's");
+        // ... and the phase runs on at the chevrons' rate along the track.
+        WakeMesh.Vertex next = rowOver(early, 41 * 0.4).get(COLUMNS / 2);
+        assertEquals(0.4 * WakeField.chevronPhasePerBlockBack(), earlyRow.chevron() - next.chevron(), 1e-5, "a sample further along is a step lower in phase");
+    }
+
+    /** The row whose middle vertex is at x = {@code x}. */
+    private static List<WakeMesh.Vertex> rowOver(WakeMesh.Mesh mesh, double x) {
+        for (List<WakeMesh.Vertex> row : mesh.rows()) {
+            if (Math.abs(row.get(COLUMNS / 2).x() - x) < 1e-9) {
+                return row;
+            }
+        }
+        throw new AssertionError("no row over x=" + x);
     }
 
     @Test

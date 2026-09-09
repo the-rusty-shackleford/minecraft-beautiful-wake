@@ -74,18 +74,24 @@ public final class WakeRenderer {
     private WakeRenderer() {}
 
     /**
-     * The churn is animated by frames: two, the bubbles nudged differently,
+     * Every texture is drawn with the culled entity translucent type: a quad
+     * is seen from above or not at all. A shader pack that flips a back
+     * face's normal before lighting it (Complementary does) would otherwise
+     * draw the wake dark from anywhere under the sheet's plane -- a
+     * swimmer's own eye in first person sits right at it.
+     *
+     * <p>The churn is animated by frames: two, the bubbles nudged differently,
      * shown turn and turn about every {@link #FRAME_TICKS} ticks so it
      * boils; the splash flecks have three, cycled per splash. The edge line
      * and the chevron lines are still: a straight line that stepped between
      * frames read as a vibration, not as foam.
      */
-    private static final RenderType SKIN = RenderType.entityTranslucent(texture("skin"));
-    private static final RenderType LINES = RenderType.entityTranslucent(texture("lines"));
+    private static final RenderType SKIN = RenderType.entityTranslucentCull(texture("skin"));
+    private static final RenderType LINES = RenderType.entityTranslucentCull(texture("lines"));
     private static final RenderType[] FOAM = frames("foam", 2);
     private static final RenderType[] FLECKS = frames("flecks", 3);
-    private static final RenderType BUBBLE = RenderType.entityTranslucent(texture("bubble"));
-    private static final RenderType RING = RenderType.entityTranslucent(texture("ring"));
+    private static final RenderType BUBBLE = RenderType.entityTranslucentCull(texture("bubble"));
+    private static final RenderType RING = RenderType.entityTranslucentCull(texture("ring"));
     /** Ticks each frame of the wake's foam is shown for. */
     private static final int FRAME_TICKS = 4;
     /** Ticks each frame of a splash's flecks is shown for. */
@@ -117,7 +123,7 @@ public final class WakeRenderer {
     private static RenderType[] frames(String name, int count) {
         RenderType[] types = new RenderType[count];
         for (int i = 0; i < count; i++) {
-            types[i] = RenderType.entityTranslucent(texture(name + "_" + i));
+            types[i] = RenderType.entityTranslucentCull(texture(name + "_" + i));
         }
         return types;
     }
@@ -210,16 +216,19 @@ public final class WakeRenderer {
     /**
      * The trail's samples with the craft's interpolated position this frame
      * on the end, one tick ahead of the newest, so the wake starts at the
-     * hull and not where the hull was at the last tick.
+     * hull and not where the hull was at the last tick -- but only while the
+     * craft is on the water making wake this tick. A diver's or a flier's
+     * trail stays where it was left and fades there; it is not dragged
+     * along the surface under them.
      */
     private static List<Sample> headed(WakeTracker.Tracked tracked, Entity entity, float partial, long now) {
         List<Sample> samples = new ArrayList<>(tracked.trail().samples());
-        if (entity != null && !samples.isEmpty()) {
+        if (entity != null && !samples.isEmpty() && tracked.sampledAt() == now) {
             Sample last = samples.get(samples.size() - 1);
             Vec3 at = entity.getPosition(partial);
             Sample head = new Sample(at.x, last.surfaceY(), at.z, now + 1);
             if (last.distanceTo(head) > 1e-4) {
-                samples.add(head);
+                samples.add(head.atArc(last.arc() + last.distanceTo(head)));
             }
         }
         return samples;

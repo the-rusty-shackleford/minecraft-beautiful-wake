@@ -31,7 +31,12 @@ package com.nfx.beautifulwake.domain;
  * intensity is applied by the reader -- heights scale with it and foam
  * with its square root -- and so is the relief. Past the grid's reach the
  * last sample is read, where the chevrons have died away to nothing much.
- * Beside each height, its slopes along and across the track, for normals.
+ * The chevrons are kept apart from the rest -- their envelope, how tall a
+ * ridge is at each point, beside the base of bow wave, trough and ripples
+ * -- because their phase is not the table's to know: a wake that stays
+ * where the water left it measures the phase from a point fixed in the
+ * water, and the mesh puts the cosine in. Beside each part, its slopes
+ * along and across the track, for normals.
  *
  * <p>Building one is a few hundred thousand evaluations of the field,
  * tens of milliseconds: more than a frame, so a client builds them off
@@ -49,9 +54,12 @@ public final class WakeTable {
     private final double dFrom;
     private final int nd;
     private final int ns;
-    private final float[] height;
-    private final float[] slopeD;
-    private final float[] slopeS;
+    private final float[] base;
+    private final float[] baseD;
+    private final float[] baseS;
+    private final float[] envelope;
+    private final float[] envelopeD;
+    private final float[] envelopeS;
     private final float[] foam;
 
     private WakeTable(double hull, double nose) {
@@ -61,30 +69,39 @@ public final class WakeTable {
         this.nd = (int) Math.ceil((REACH - dFrom) / STEP) + 1;
         double sMax = WakeField.halfWidth(hull, nose, REACH) + WakeField.EDGE + STEP;
         this.ns = (int) Math.ceil(sMax / STEP) + 1;
-        this.height = new float[nd * ns];
-        this.slopeD = new float[nd * ns];
-        this.slopeS = new float[nd * ns];
+        this.base = new float[nd * ns];
+        this.baseD = new float[nd * ns];
+        this.baseS = new float[nd * ns];
+        this.envelope = new float[nd * ns];
+        this.envelopeD = new float[nd * ns];
+        this.envelopeS = new float[nd * ns];
         this.foam = new float[nd * ns];
         for (int i = 0; i < nd; i++) {
             double d = dFrom + i * STEP;
             for (int j = 0; j < ns; j++) {
                 double s = j * STEP;
                 int at = i * ns + j;
-                height[at] = (float) WakeField.height(hull, nose, 1.0, 1.0, d, s);
+                base[at] = (float) WakeField.base(hull, nose, 1.0, 1.0, d, s);
+                envelope[at] = (float) (WakeField.edgeFade(hull, nose, d, s) * WakeField.chevronEnvelope(hull, d));
                 foam[at] = (float) WakeField.foam(hull, nose, 1.0, d, s);
             }
         }
         // Slopes from the grid's own neighbours: across the track the
         // field is even in s, so the sample at -s is the one at +s.
+        slopes(base, baseD, baseS);
+        slopes(envelope, envelopeD, envelopeS);
+    }
+
+    private void slopes(float[] of, float[] alongD, float[] acrossS) {
         for (int i = 0; i < nd; i++) {
             for (int j = 0; j < ns; j++) {
                 int at = i * ns + j;
-                float before = i > 0 ? height[at - ns] : 0.0f;
-                float after = i + 1 < nd ? height[at + ns] : height[at];
-                slopeD[at] = (float) ((after - before) / (2.0 * STEP));
-                float inboard = j > 0 ? height[at - 1] : height[at + 1];
-                float outboard = j + 1 < ns ? height[at + 1] : 0.0f;
-                slopeS[at] = (float) ((outboard - inboard) / (2.0 * STEP));
+                float before = i > 0 ? of[at - ns] : 0.0f;
+                float after = i + 1 < nd ? of[at + ns] : of[at];
+                alongD[at] = (float) ((after - before) / (2.0 * STEP));
+                float inboard = j > 0 ? of[at - 1] : of[at + 1];
+                float outboard = j + 1 < ns ? of[at + 1] : 0.0f;
+                acrossS[at] = (float) ((outboard - inboard) / (2.0 * STEP));
             }
         }
     }
@@ -115,19 +132,39 @@ public final class WakeTable {
         return nose;
     }
 
-    /** effects: returns the height at {@code (d, s)} at full intensity and relief */
+    /** effects: returns the height at {@code (d, s)} without the chevrons, at full intensity and relief */
+    public double base(double d, double s) {
+        return read(base, d, s);
+    }
+
+    /** effects: returns the base's slope along the track at {@code (d, s)}, rising with {@code d} */
+    public double baseD(double d, double s) {
+        return read(baseD, d, s);
+    }
+
+    /** effects: returns the base's slope across the track at {@code (d, s)}, rising with {@code s}; odd in {@code s} */
+    public double baseS(double d, double s) {
+        return s < 0.0 ? -read(baseS, d, -s) : read(baseS, d, s);
+    }
+
+    /** effects: returns the chevrons' envelope at {@code (d, s)}: how tall a ridge is there, the V's edge applied */
+    public double envelope(double d, double s) {
+        return read(envelope, d, s);
+    }
+
+    /** effects: returns the envelope's slope along the track at {@code (d, s)} */
+    public double envelopeD(double d, double s) {
+        return read(envelopeD, d, s);
+    }
+
+    /** effects: returns the envelope's slope across the track at {@code (d, s)}; odd in {@code s} */
+    public double envelopeS(double d, double s) {
+        return s < 0.0 ? -read(envelopeS, d, -s) : read(envelopeS, d, s);
+    }
+
+    /** effects: returns the height at {@code (d, s)} at full intensity and relief, the chevrons at the phase measured from the hull */
     public double height(double d, double s) {
-        return read(height, d, s);
-    }
-
-    /** effects: returns the slope along the track at {@code (d, s)}, rising with {@code d}, at full intensity and relief */
-    public double slopeD(double d, double s) {
-        return read(slopeD, d, s);
-    }
-
-    /** effects: returns the slope across the track at {@code (d, s)}, rising with {@code s}, at full intensity and relief; it is odd in {@code s} */
-    public double slopeS(double d, double s) {
-        return s < 0.0 ? -read(slopeS, d, -s) : read(slopeS, d, s);
+        return base(d, s) + envelope(d, s) * Math.cos(2.0 * Math.PI * WakeField.chevronPhase(d, s));
     }
 
     /** effects: returns the foam at {@code (d, s)} at full intensity */

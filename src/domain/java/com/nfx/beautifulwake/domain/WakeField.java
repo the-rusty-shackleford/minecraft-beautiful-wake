@@ -174,15 +174,50 @@ public final class WakeField {
      * before the intensity, the relief and the V's edge are applied: a
      * ridge {@link #CHEVRON_HEIGHT} high at a whole phase, a trough as
      * deep at a half, nothing until {@link #CHEVRON_FROM} hulls behind the
-     * centre and rising over the next hull, dying away with distance
+     * centre and rising over the next hull, dying away with distance --
+     * the {@link #chevronEnvelope} times the cosine of the phase measured
+     * from the hull
      */
     public static double chevronHeight(double hull, double d, double s) {
+        return chevronEnvelope(hull, d) * Math.cos(2.0 * Math.PI * chevronPhase(d, s));
+    }
+
+    /**
+     * effects: returns how tall the chevron ridges are {@code d} blocks
+     * behind the hull's centre, whatever their phase: nothing until
+     * {@link #CHEVRON_FROM} hulls back, rising to {@link #CHEVRON_HEIGHT}
+     * over the next hull, dying away over {@link #CHEVRON_DECAY} blocks.
+     * The phase may be measured from the hull, as {@link #chevronHeight}
+     * does, or from a point fixed in the water, as a wake that stays where
+     * it was left needs; the envelope is the same either way.
+     */
+    public static double chevronEnvelope(double hull, double d) {
         double from = d - hull * CHEVRON_FROM;
         if (from <= 0.0) {
             return 0.0;
         }
         double start = Math.min(1.0, from / hull);
-        return CHEVRON_HEIGHT * Math.cos(2.0 * Math.PI * chevronPhase(d, s)) * start * Math.exp(-d / CHEVRON_DECAY);
+        return CHEVRON_HEIGHT * start * Math.exp(-d / CHEVRON_DECAY);
+    }
+
+    /**
+     * effects: returns the water's height at {@code (d, s)} without the
+     * chevrons: the bow wave, the trough and the transverse ripples, with
+     * the intensity, the relief and the V's edge applied<br>
+     * throws: as {@link #height}
+     */
+    public static double base(double hull, double nose, double intensity, double relief, double d, double s) {
+        return height(hull, nose, intensity, relief, d, s) - intensity * relief * edgeFade(hull, nose, d, s) * chevronHeight(hull, d, s);
+    }
+
+    /** effects: returns the rate the chevron phase changes per block moved back along the track */
+    public static double chevronPhasePerBlockBack() {
+        return CHEVRON_SIN / CHEVRON_WAVELENGTH;
+    }
+
+    /** effects: returns the rate the chevron phase changes per block moved outward from the track */
+    public static double chevronPhasePerBlockOut() {
+        return -CHEVRON_COS / CHEVRON_WAVELENGTH;
     }
 
     /**

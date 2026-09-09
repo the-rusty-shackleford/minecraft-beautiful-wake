@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * Partitions. Intensity: below the minimum, at it, between, at full, above,
+ * Partitions. Intensity: below the minimum, at it, just above it (no jump), between (a curve), at full, above,
  * bad bounds, bad speed. Foam alpha: at the stern,
  * mid-life (holds early), at the end, past it, by intensity. Spray: below
  * the start, at full, between (grows faster than linearly), bad arguments.
@@ -46,16 +46,20 @@ final class WakeTest {
     }
 
     @Test
-    void intensityIsLinearBetween() {
-        assertEquals(0.5, Wake.intensity(0.2125, 0.075, 0.35), 1e-9);
-        assertEquals(0.25, Wake.intensity(0.25, 0.0, 1.0), 1e-9);
+    void intensityRisesQuicklyFromNothingAndEasesTowardFull() {
+        double quarter = Wake.intensity(0.15, 0.1, 0.3);
+        double half = Wake.intensity(0.2, 0.1, 0.3);
+        assertEquals(Math.pow(0.25, Wake.RAMP), quarter, 1e-9);
+        assertEquals(Math.pow(0.5, Wake.RAMP), half, 1e-9);
+        assertTrue(quarter > 0.25 && half > 0.5, "ahead of a straight line");
+        assertTrue(Wake.intensity(0.1000001, 0.1, 0.3) < 0.01, "but from nothing, not a jump: " + Wake.intensity(0.1000001, 0.1, 0.3));
     }
 
     @Test
     void aFlooredIntensityStartsAtTheFloorAndStillEndsAtOne() {
         assertEquals(0.0, Wake.intensity(0.075, 0.075, 0.35, 0.35));
-        assertEquals(0.35, Wake.intensity(0.0751, 0.075, 0.35, 0.35), 0.001);
-        assertEquals(0.675, Wake.intensity(0.2125, 0.075, 0.35, 0.35), 1e-9);
+        assertEquals(0.35, Wake.intensity(0.0751, 0.075, 0.35, 0.35), 0.01);
+        assertEquals(0.35 + 0.65 * Math.pow(0.5, Wake.RAMP), Wake.intensity(0.2125, 0.075, 0.35, 0.35), 1e-9);
         assertEquals(1.0, Wake.intensity(0.35, 0.075, 0.35, 0.35));
         assertThrows(IllegalArgumentException.class, () -> Wake.intensity(0.1, 0.075, 0.35, 1.5));
     }

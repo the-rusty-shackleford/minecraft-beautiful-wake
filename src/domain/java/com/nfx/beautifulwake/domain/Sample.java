@@ -22,19 +22,32 @@ package com.nfx.beautifulwake.domain;
  * the tick.
  *
  * <p>RI: the coordinates are finite.<br>
- * AF: AF(x, surfaceY, z, tick) = "at game tick {@code tick} the hull was
- * over {@code (x, z)} and the water there stood at height {@code surfaceY}".
+ * AF: AF(x, surfaceY, z, tick, arc) = "at game tick {@code tick} the hull was
+ * over {@code (x, z)}, {@code arc} blocks along its track, and the water there
+ * stood at height {@code surfaceY}".
  *
  * @param x        east-west position
  * @param surfaceY the height of the water surface under the hull
  * @param z        north-south position
  * @param tick     the game tick
+ * @param arc      how far along the track the hull had come, in blocks, since its trail began:
+ *                 fixed for good once sampled, so a pattern laid down by it stays where the water is
  */
-public record Sample(double x, double surfaceY, double z, long tick) {
+public record Sample(double x, double surfaceY, double z, long tick, double arc) {
     public Sample {
-        if (!Double.isFinite(x) || !Double.isFinite(surfaceY) || !Double.isFinite(z)) {
+        if (!Double.isFinite(x) || !Double.isFinite(surfaceY) || !Double.isFinite(z) || !Double.isFinite(arc)) {
             throw new IllegalArgumentException("a sample's coordinates must be finite");
         }
+    }
+
+    /** A sample at the start of a track: arc zero. {@link Trail#add} sets the arc of what it keeps. */
+    public Sample(double x, double surfaceY, double z, long tick) {
+        this(x, surfaceY, z, tick, 0.0);
+    }
+
+    /** effects: returns this sample with its arc set to {@code arc} */
+    public Sample atArc(double arc) {
+        return new Sample(x, surfaceY, z, tick, arc);
     }
 
     /** effects: returns the horizontal distance to {@code other} */

@@ -421,6 +421,39 @@ public final class WakeBooth {
         s.add(new Step(act + 200, () -> {
             KeyMapping.set(mc.options.keyUp.getKey(), false);
             KeyMapping.set(mc.options.keyLeft.getKey(), false);
+        }));
+        // The third act: the player leaves the boat, wades, then flies off
+        // over the water. The wake must not follow them into the air: the
+        // newest sample stays where they left the water.
+        s.add(new Step(act + 206, () -> onServer(mc, p -> {
+            p.stopRiding();
+            p.teleportTo(p.serverLevel(), POOL_X0 + 12, GRASS_Y, SHELF_Z0 + 6, -90.0f, 20.0f);
+        })));
+        s.add(new Step(act + 216, () -> KeyMapping.set(mc.options.keyUp.getKey(), true)));
+        s.add(new Step(act + 256, () -> {
+            KeyMapping.set(mc.options.keyUp.getKey(), false);
+            onServer(mc, p -> {
+                p.getAbilities().flying = true;
+                p.onUpdateAbilities();
+                p.teleportTo(p.serverLevel(), p.getX() + 6.0, SURFACE + 6.0, p.getZ(), -90.0f, 30.0f);
+            });
+        }));
+        s.add(new Step(act + 262, () -> verdict("a player who flies off leaves the wake where they left the water", () -> {
+            var tracked = WakeTracker.tracked(mc.player.getId());
+            if (tracked.isEmpty()) {
+                return null;   // gone already: nothing follows them
+            }
+            WakeTracker.Tracked t = tracked.get();
+            var last = t.trail().latest();
+            if (last.isEmpty()) {
+                return null;
+            }
+            double gap = Math.hypot(mc.player.getX() - last.get().x(), mc.player.getZ() - last.get().z());
+            return t.sampledAt() < mc.level.getGameTime() && gap > 4.0
+                    ? null : "sampled at " + t.sampledAt() + " now " + mc.level.getGameTime() + ", newest sample " + gap + " blocks from the player";
+        })));
+        s.add(new Step(act + 264, () -> shoot(mc, "booth-flown-off")));
+        s.add(new Step(act + 266, () -> {
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;
             mc.stop();

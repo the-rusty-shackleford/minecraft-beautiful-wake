@@ -46,11 +46,17 @@ public final class Wake {
         return intensity(speed, minSpeed, fullSpeed, 0.0);
     }
 
+    /** The ramp's curve: below one, so the wake comes on quickly from nothing and eases toward full -- never a jump. */
+    public static final double RAMP = 0.6;
+
     /**
      * effects: returns the wake's intensity for {@code speed} with a floor:
      * 0 at or below {@code minSpeed}, {@code floor} just above it, 1 at or
-     * above {@code fullSpeed}, linear between -- so the slowest wake that
-     * exists is still a wake to look at, not a rumour of one<br>
+     * above {@code fullSpeed}, between them rising as the {@link #RAMP}
+     * power of the way from one to the other -- quickly at first, easing
+     * toward full, so a boat gathering way sees its wake build rather than
+     * snap in. A floor above zero is a jump at the minimum speed, and is
+     * kept only for callers that want one.<br>
      * throws: {@link IllegalArgumentException} as the three-argument form,
      * or if {@code floor} is outside {@code [0, 1]}
      */
@@ -70,7 +76,7 @@ public final class Wake {
         if (speed >= fullSpeed) {
             return 1.0;
         }
-        return floor + (1.0 - floor) * (speed - minSpeed) / (fullSpeed - minSpeed);
+        return floor + (1.0 - floor) * Math.pow((speed - minSpeed) / (fullSpeed - minSpeed), RAMP);
     }
 
     /**

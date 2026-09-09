@@ -33,6 +33,21 @@ import org.junit.jupiter.api.Test;
  */
 final class TrailTest {
 
+    @Test
+    void theArcRunsOnFromTheLastSampleKeptAndStartsAfreshAfterATeleport() {
+        Trail trail = new Trail(100);
+        trail.add(new Sample(0, 63, 0, 1, 99.0));   // the caller's arc is ignored
+        trail.add(new Sample(1.2, 63, 1.6, 2));       // two blocks on
+        trail.add(new Sample(1.2, 63, 2.6, 3));       // and one more
+        List<Sample> s = trail.samples();
+        assertEquals(0.0, s.get(0).arc(), 1e-9);
+        assertEquals(2.0, s.get(1).arc(), 1e-9);
+        assertEquals(3.0, s.get(2).arc(), 1e-9);
+        trail.add(new Sample(500, 63, 5, 4));        // teleported: a fresh trail
+        assertEquals(1, trail.samples().size());
+        assertEquals(0.0, trail.samples().get(0).arc(), 1e-9);
+    }
+
     private static Sample at(double x, double z, long tick) {
         return new Sample(x, 62.0, z, tick);
     }
@@ -49,8 +64,8 @@ final class TrailTest {
         trail.add(at(0, 0, 100));
         trail.add(at(1, 0, 105));
         trail.add(at(2, 0, 111));                       // 11 ticks after the first: the first goes
-        assertEquals(List.of(at(1, 0, 105), at(2, 0, 111)), trail.samples());
-        assertEquals(Optional.of(at(2, 0, 111)), trail.latest());
+        assertEquals(List.of(at(1, 0, 105).atArc(1.0), at(2, 0, 111).atArc(2.0)), trail.samples());
+        assertEquals(Optional.of(at(2, 0, 111).atArc(2.0)), trail.latest());
         trail.prune(130);
         assertTrue(trail.isEmpty());
         assertEquals(Optional.empty(), trail.latest());

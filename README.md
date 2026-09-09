@@ -21,10 +21,11 @@ client-side mod for NeoForge 1.21.1.
   scales with speed, from a proper wake at a paddle to the full pattern at
   a boat's top speed, so it grows as the boat gathers way and dies as it
   drifts; and it is sized to a rowboat, with a `scale` to make more of it.
-- **The same behind a swimmer**, smaller and lower. A player wading or an
-  animal crossing the surface leaves a V of its own with a little churn and
-  a few bubbles; nothing under water, and nothing riding a boat, whose wake
-  is the boat's.
+- **The same behind a swimmer**, from a hull twice the body's width and
+  standing a little lower. A player wading or an animal crossing the surface
+  leaves a V of its own with a churn and bubbles; nothing under water --
+  a diver's wake fades where they went under -- and nothing riding a boat,
+  whose wake is the boat's.
 - **A splash where anything enters the water.** A ring that spreads and
   fades, droplets thrown up and bubbles left under, sized by what fell and
   how fast: an apple is light, an ingot dense, a block heavy, a stack heavier
@@ -103,7 +104,7 @@ its chunk, spawned there) did not fall in and splashes nothing.
 | `swimmers.enabled` | true | a wake behind swimmers |
 | `swimmers.minSpeed` | 0.03 | below this a swimmer leaves nothing |
 | `swimmers.fullSpeed` | 0.14 | a brisk wade or an easy swim |
-| `swimmers.strength` | 0.9 | a swimmer's wake next to a boat's |
+| `swimmers.strength` | 1.0 | a swimmer's wake next to a boat's |
 
 The sheet, the lines, the foam and the bubbles are custom geometry in the
 translucent pass, lit by the water's light and shaded by their own normals.

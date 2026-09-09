@@ -24,8 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * Partitions. Against the field: heights, foam and slopes on and off the
- * grid's points, inside the V, on its edge, outside, ahead of the point,
+ * Partitions. Against the field: heights (base and envelope composed),
+ * foam and slopes on and off the grid's points, the envelope alone, inside the V, on its edge, outside, ahead of the point,
  * port and starboard, at the reach and beyond it. The hull and the nose,
  * fitting params or not. Bad hulls and noses.
  */
@@ -69,12 +69,19 @@ final class WakeTableTest {
     void slopesFollowTheFieldAndTheAcrossSlopeIsOddInS() {
         double h = 0.01;
         for (double d : new double[] {-0.4, 0.8, 3.0, 9.5, 20.0}) {
-            for (double s : new double[] {0.0, 0.4, 1.3, 2.7}) {
+            for (double s : new double[] {0.3, 0.4, 1.3, 2.7}) {
                 double fieldD = (WakeField.height(HULL, NOSE, 1.0, 1.0, d + h, s) - WakeField.height(HULL, NOSE, 1.0, 1.0, d - h, s)) / (2 * h);
                 double fieldS = (WakeField.height(HULL, NOSE, 1.0, 1.0, d, s + h) - WakeField.height(HULL, NOSE, 1.0, 1.0, d, s - h)) / (2 * h);
-                assertEquals(fieldD, T.slopeD(d, s), 0.05, "slope along at " + d + "," + s);
-                assertEquals(fieldS, T.slopeS(d, s), 0.05, "slope across at " + d + "," + s);
-                assertEquals(-T.slopeS(d, s), T.slopeS(d, -s), 1e-9, "odd across the track");
+                // The table's parts, composed as the mesh composes them with the phase measured from the hull.
+                double phase = 2.0 * Math.PI * WakeField.chevronPhase(d, s);
+                double slopeD = T.baseD(d, s) + T.envelopeD(d, s) * Math.cos(phase)
+                        - T.envelope(d, s) * 2.0 * Math.PI * Math.sin(phase) * WakeField.chevronPhasePerBlockBack();
+                double slopeS = T.baseS(d, s) + T.envelopeS(d, s) * Math.cos(phase)
+                        - T.envelope(d, s) * 2.0 * Math.PI * Math.sin(phase) * Math.signum(s) * WakeField.chevronPhasePerBlockOut();
+                assertEquals(fieldD, slopeD, 0.05, "slope along at " + d + "," + s);
+                assertEquals(fieldS, slopeS, 0.05, "slope across at " + d + "," + s);
+                assertEquals(-T.baseS(d, s), T.baseS(d, -s), 1e-9, "odd across the track");
+                assertEquals(-T.envelopeS(d, s), T.envelopeS(d, -s), 1e-9);
             }
         }
     }
@@ -91,8 +98,20 @@ final class WakeTableTest {
 
     @Test
     void beyondTheReachTheLastRowIsRead() {
-        assertEquals(T.height(WakeTable.REACH + 1.0, 2.0), T.height(WakeTable.REACH + 30.0, 2.0), 1e-9);
-        assertTrue(Math.abs(T.height(WakeTable.REACH + 30.0, 2.0)) < 0.01, "and there is nothing much left there");
+        assertEquals(T.base(WakeTable.REACH + 1.0, 2.0), T.base(WakeTable.REACH + 30.0, 2.0), 1e-9);
+        assertEquals(T.envelope(WakeTable.REACH + 1.0, 2.0), T.envelope(WakeTable.REACH + 30.0, 2.0), 1e-9);
+        assertTrue(Math.abs(T.base(WakeTable.REACH + 30.0, 2.0)) + T.envelope(WakeTable.REACH + 30.0, 2.0) < 0.02, "and there is nothing much left there");
+    }
+
+    @Test
+    void theChevronsEnvelopeIsTheirHeightWhateverThePhase() {
+        assertEquals(0.0, T.envelope(0.2, 0.0), 1e-9, "none before they start");
+        double d = 8.0;
+        assertEquals(WakeField.chevronEnvelope(HULL, d), T.envelope(d, 0.0), 0.003);
+        assertEquals(0.0, T.envelope(d, WakeField.halfWidth(HULL, NOSE, d) + WakeField.EDGE + 0.2), 1e-9, "the V's edge applies");
+        // With the phase measured from the hull the table gives the field back; with another phase, another ridge.
+        double phase = WakeField.chevronPhase(d, 0.0);
+        assertEquals(WakeField.height(HULL, NOSE, 1.0, 1.0, d, 0.0), T.base(d, 0.0) + T.envelope(d, 0.0) * Math.cos(2 * Math.PI * phase), 0.006);
     }
 
     @Test

@@ -62,7 +62,9 @@ public final class Trail {
      * boat was sampled twice in one tick, or the clock went backwards); a
      * sample farther from the last than {@link #MAX_SPEED} blocks a tick
      * could carry it starts the trail afresh -- the boat was teleported, and
-     * no wake joins where it was to where it is
+     * no wake joins where it was to where it is. The kept sample's arc is
+     * the last one's plus the distance between them, whatever the caller
+     * set; a fresh trail starts at zero.
      */
     public void add(Sample sample) {
         Sample last = samples.peekLast();
@@ -71,8 +73,10 @@ public final class Trail {
         }
         if (last != null && sample.distanceTo(last) > MAX_SPEED * (sample.tick() - last.tick())) {
             samples.clear();
+            last = null;
         }
-        samples.addLast(sample);
+        // The arc runs on from the last sample kept: the caller's is ignored.
+        samples.addLast(sample.atArc(last == null ? 0.0 : last.arc() + sample.distanceTo(last)));
         prune(sample.tick());
     }
 

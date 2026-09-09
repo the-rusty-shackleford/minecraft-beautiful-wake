@@ -97,7 +97,7 @@ public final class WakeConfig {
         SWIMMER_FULL_SPEED = b.comment("At this speed a swimmer's wake is at its strongest; 0.14 is a brisk wade or an easy swim.")
                 .defineInRange("fullSpeed", 0.14, 0.01, 10.0);
         SWIMMER_STRENGTH = b.comment("How strong a swimmer's wake is next to a boat's, 0 to 1.")
-                .defineInRange("strength", 0.9, 0.05, 1.0);
+                .defineInRange("strength", 1.0, 0.05, 1.0);
         b.pop();
 
         SPEC = b.build();

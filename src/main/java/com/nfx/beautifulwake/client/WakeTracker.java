@@ -58,8 +58,13 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 public final class WakeTracker {
     private WakeTracker() {}
 
-    /** A followed entity: its kind, its trail, its bow's bubbles, the water's height last seen, and the last tick it was seen. */
-    public record Tracked(Craft.Kind kind, Trail trail, BowFoam foam, double width, double surfaceY, long seenAt) {}
+    /**
+     * A followed entity: its kind, its trail, its bow's bubbles, the water's
+     * height last seen, the last tick it was seen, and the last tick it was
+     * on the water making wake -- a diver's or a flier's trail fades where
+     * it was left and is not carried along under them.
+     */
+    public record Tracked(Craft.Kind kind, Trail trail, BowFoam foam, double width, double surfaceY, long seenAt, long sampledAt) {}
 
     /** One table being built or built, for one hull width and nose. */
     private record Building(double hull, double nose, CompletableFuture<WakeTable> future) {}
@@ -104,7 +109,7 @@ public final class WakeTracker {
     private static final double SPRAY_FROM = 0.3;
     /** The most bubbles a bow throws in a tick, a hull's and a swimmer's. */
     private static final int HULL_BUBBLES = 12;
-    private static final int SWIMMER_BUBBLES = 3;
+    private static final int SWIMMER_BUBBLES = 6;
 
     /** effects: returns what is followed for entity {@code id}, if anything */
     public static Optional<Tracked> tracked(int id) {
@@ -144,16 +149,18 @@ public final class WakeTracker {
             OptionalDouble surface = Craft.surface(level, entity);
             Tracked tracked = TRACKED.get(entity.getId());
             if (tracked == null || tracked.trail().lifeTicks() != lifeTicks) {
-                tracked = new Tracked(kind.get(), new Trail(lifeTicks), new BowFoam(), entity.getBbWidth(), surface.orElse(entity.getY()), now);
+                tracked = new Tracked(kind.get(), new Trail(lifeTicks), new BowFoam(), entity.getBbWidth(), surface.orElse(entity.getY()), now, -1L);
             }
             double surfaceY = surface.orElse(tracked.surfaceY());
             tracked.foam().tick(now, surfaceY);
+            long sampledAt = tracked.sampledAt();
             if (surface.isPresent()) {
                 tracked.trail().add(new Sample(entity.getX(), surfaceY, entity.getZ(), now));
                 bubbles(level, entity, tracked, surfaceY, now);
                 spray(level, entity, tracked, surfaceY);
+                sampledAt = now;
             }
-            TRACKED.put(entity.getId(), new Tracked(kind.get(), tracked.trail(), tracked.foam(), entity.getBbWidth(), surfaceY, now));
+            TRACKED.put(entity.getId(), new Tracked(kind.get(), tracked.trail(), tracked.foam(), entity.getBbWidth(), surfaceY, now, sampledAt));
         }
 
         // Drop what is gone, or has left the water and let its foam fade.

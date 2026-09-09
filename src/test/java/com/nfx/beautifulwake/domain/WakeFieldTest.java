@@ -33,7 +33,8 @@ import org.junit.jupiter.api.Test;
  * start, dying with distance), all of it inside the V and none outside,
  * scaling with intensity and relief, bad arguments. Chevron phase: the
  * same either side, growing back, falling outward, constant along a
- * ridge, the ridge pointing at the hull. Foam: solid at the stern,
+ * ridge, the ridge pointing at the hull; the base and the envelope apart.
+ * Foam: solid at the stern,
  * thinner behind, none outside the churn far back, none ahead of the bow,
  * the bow's shoulders, bounded by one, none at zero intensity, bad
  * arguments.
@@ -122,6 +123,19 @@ final class WakeFieldTest {
         double far = ridgeHeight(40.0);
         assertTrue(near > far * 2.0, "ridges die away: near " + near + " far " + far);
         assertEquals(WakeField.CHEVRON_HEIGHT * Math.exp(-6.0 / WakeField.CHEVRON_DECAY), WakeField.chevronHeight(HULL, 6.0, solveS(6.0, 1.0)), 1e-9, "a ridge at a whole phase");
+    }
+
+    @Test
+    void theBaseIsTheHeightWithoutTheChevronsAndTheEnvelopeIsTheirHeight() {
+        double d = 10.0;
+        double s = 1.0;
+        assertEquals(WakeField.height(HULL, NOSE, 1.0, 1.0, d, s),
+                WakeField.base(HULL, NOSE, 1.0, 1.0, d, s) + WakeField.chevronHeight(HULL, d, s), 1e-12);
+        assertEquals(0.0, WakeField.chevronEnvelope(HULL, HULL * WakeField.CHEVRON_FROM), 0.0);
+        assertEquals(WakeField.CHEVRON_HEIGHT * Math.exp(-d / WakeField.CHEVRON_DECAY), WakeField.chevronEnvelope(HULL, d), 1e-12);
+        assertEquals(WakeField.chevronEnvelope(HULL, d) * Math.cos(2 * Math.PI * WakeField.chevronPhase(d, s)), WakeField.chevronHeight(HULL, d, s), 1e-12);
+        assertTrue(WakeField.chevronPhasePerBlockBack() > 0.0, "back along the track the phase grows");
+        assertTrue(WakeField.chevronPhasePerBlockOut() < 0.0, "outward it falls");
     }
 
     @Test
