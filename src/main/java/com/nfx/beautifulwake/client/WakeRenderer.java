@@ -18,7 +18,9 @@
 package com.nfx.beautifulwake.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.nfx.beautifulwake.BeautifulWake;
 import com.nfx.beautifulwake.WakeConfig;
 import com.nfx.beautifulwake.domain.BowFoam;
@@ -37,8 +39,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
@@ -74,11 +77,16 @@ public final class WakeRenderer {
     private WakeRenderer() {}
 
     /**
-     * Every texture is drawn with the culled entity translucent type: a quad
-     * is seen from above or not at all. A shader pack that flips a back
-     * face's normal before lighting it (Complementary does) would otherwise
-     * draw the wake dark from anywhere under the sheet's plane -- a
-     * swimmer's own eye in first person sits right at it.
+     * Every texture is drawn through the game's particle shader, on a render
+     * type of our own: position, texture, colour and light, translucent, no
+     * depth write, back faces culled. Not the entity translucent type, on
+     * purpose. Shader packs make assumptions about entity geometry that a
+     * sheet on the water breaks: Complementary flips the normal of a back
+     * face before lighting it, and pushes any vertex whose colour alpha is
+     * under a half behind whatever is beneath it -- which put a swimmer's
+     * whole faded wake under the water and made a boat's far V vanish.
+     * Particles are the one translucent thing every pack draws at every
+     * alpha, lit by the water's light, with nothing to flip.
      *
      * <p>The churn is animated by frames: two, the bubbles nudged differently,
      * shown turn and turn about every {@link #FRAME_TICKS} ticks so it
@@ -86,12 +94,18 @@ public final class WakeRenderer {
      * and the chevron lines are still: a straight line that stepped between
      * frames read as a vibration, not as foam.
      */
-    private static final RenderType SKIN = RenderType.entityTranslucentCull(texture("skin"));
-    private static final RenderType LINES = RenderType.entityTranslucentCull(texture("lines"));
+    private static final RenderType SKIN = sheet("skin");
+    private static final RenderType LINES = sheet("lines");
     private static final RenderType[] FOAM = frames("foam", 2);
     private static final RenderType[] FLECKS = frames("flecks", 3);
-    private static final RenderType BUBBLE = RenderType.entityTranslucentCull(texture("bubble"));
-    private static final RenderType RING = RenderType.entityTranslucentCull(texture("ring"));
+    private static final RenderType BUBBLE = sheet("bubble");
+    private static final RenderType RING = sheet("ring");
+    /**
+     * The white of the foam: a shade under pure white. Complementary's
+     * particle program takes pure white at a middling alpha for falling snow
+     * and thins it.
+     */
+    private static final int WHITE = 254;
     /** Ticks each frame of the wake's foam is shown for. */
     private static final int FRAME_TICKS = 4;
     /** Ticks each frame of a splash's flecks is shown for. */
@@ -115,15 +129,30 @@ public final class WakeRenderer {
     private static final float EDGE_SPAN = (float) (EDGE_OUTSIDE - WakeMesh.EDGE_INSIDE);
     private static int lastQuadCount = 0;
     private static int lastBubbleCount = 0;
-
+    /** The camera's position this frame: every vertex is emitted relative to it. */
+    private static Vec3 origin = Vec3.ZERO;
     private static ResourceLocation texture(String name) {
         return ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/" + name + ".png");
+    }
+
+    /** A render type for one of the wake's textures, as described on the class. */
+    private static RenderType sheet(String name) {
+        return RenderType.create("beautifulwake_" + name, DefaultVertexFormat.PARTICLE, VertexFormat.Mode.QUADS, 4096, false, true,
+                RenderType.CompositeState.builder()
+                        .setShaderState(new RenderStateShard.ShaderStateShard(GameRenderer::getParticleShader))
+                        .setTextureState(new RenderStateShard.TextureStateShard(texture(name), false, false))
+                        .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                        .setLightmapState(RenderStateShard.LIGHTMAP)
+                        .setCullState(RenderStateShard.CULL)
+                        .setWriteMaskState(RenderStateShard.COLOR_WRITE)
+                        .setOutputState(RenderStateShard.PARTICLES_TARGET)
+                        .createCompositeState(false));
     }
 
     private static RenderType[] frames(String name, int count) {
         RenderType[] types = new RenderType[count];
         for (int i = 0; i < count; i++) {
-            types[i] = RenderType.entityTranslucentCull(texture(name + "_" + i));
+            types[i] = sheet(name + "_" + i);
         }
         return types;
     }
@@ -152,13 +181,16 @@ public final class WakeRenderer {
         boolean skin = WakeConfig.SKIN.get();
         boolean lines = WakeConfig.LINES.get();
         boolean foam = WakeConfig.FOAM.get();
-        long now = level.getGameTime();
+        long now = WakeTracker.now();
         float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
         Camera camera = event.getCamera();
         Vec3 cam = camera.getPosition();
         PoseStack pose = event.getPoseStack();
+        // Vertices are taken to the camera in doubles and only then cast to
+        // float: cast in world coordinates, far from the origin, they would
+        // shake by the float's grain.
         pose.pushPose();
-        pose.translate(-cam.x, -cam.y, -cam.z);
+        origin = cam;
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         int quads = 0;
         int bubbles = 0;
@@ -206,6 +238,7 @@ public final class WakeRenderer {
             buffers.endBatch(BUBBLE);
         }
         pose.popPose();
+        origin = Vec3.ZERO;
         lastQuadCount = quads;
         lastBubbleCount = bubbles;
     }
@@ -297,13 +330,11 @@ public final class WakeRenderer {
             u = (float) ((v.edge() - WakeMesh.EDGE_INSIDE) / EDGE_SPAN);
             tex = v.chevron();
         }
-        int tone = pass == Pass.SKIN ? Math.min(255, Math.round(255.0f * v.shade())) : 255;
-        consumer.addVertex(pose, (float) v.x(), (float) v.y(), (float) v.z())
-                .setColor(tone, tone, tone, alpha(v, pass))
+        int tone = pass == Pass.SKIN ? Math.min(WHITE, Math.round(WHITE * v.shade())) : WHITE;
+        consumer.addVertex(pose, (float) (v.x() - origin.x), (float) (v.y() - origin.y), (float) (v.z() - origin.z))
                 .setUv(u, tex)
-                .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(light)
-                .setNormal(pose, (float) v.nx(), (float) v.ny(), (float) v.nz());
+                .setColor(tone, tone, tone, alpha(v, pass))
+                .setLight(light);
     }
 
     /**
@@ -322,30 +353,31 @@ public final class WakeRenderer {
         int drawn = 0;
         for (BowFoam.Bubble b : foam.bubbles()) {
             double t = b.settled() ? 0.0 : partial;
-            float x = (float) (b.x() + b.vx() * t);
-            float y = (float) (b.y() + b.vy() * t);
-            float z = (float) (b.z() + b.vz() * t);
+            double wx = b.x() + b.vx() * t;
+            double wy = b.y() + b.vy() * t;
+            double wz = b.z() + b.vz() * t;
+            float x = (float) (wx - origin.x);
+            float y = (float) (wy - origin.y);
+            float z = (float) (wz - origin.z);
             // A bubble right by the eye -- the bow's, in first person -- would
             // fill a hand's breadth of screen: it shrinks and fades out over
             // the last block and a half instead.
-            double near = Math.min(1.0, Math.max(0.0, (eye.distanceTo(new Vec3(x, y, z)) - BUBBLE_GONE) / (BUBBLE_NEAR - BUBBLE_GONE)));
+            double near = Math.min(1.0, Math.max(0.0, (eye.distanceTo(new Vec3(wx, wy, wz)) - BUBBLE_GONE) / (BUBBLE_NEAR - BUBBLE_GONE)));
             int alpha = (int) Math.round(b.alpha(frame) * near * 255.0);
             if (alpha <= 0) {
                 continue;
             }
             float half = (float) (b.size() * near / 2.0);
-            int light = LevelRenderer.getLightColor(level, BlockPos.containing(x, y + 0.3, z));
+            int light = LevelRenderer.getLightColor(level, BlockPos.containing(wx, wy + 0.3, wz));
             float[][] corners = {{-1, -1, 0, 1}, {1, -1, 1, 1}, {1, 1, 1, 0}, {-1, 1, 0, 0}};
             for (float[] c : corners) {
                 float cx = x + half * (c[0] * right.x + c[1] * up.x);
                 float cy = y + half + half * (c[0] * right.y + c[1] * up.y);
                 float cz = z + half * (c[0] * right.z + c[1] * up.z);
                 consumer.addVertex(last, cx, cy, cz)
-                        .setColor(255, 255, 255, alpha)
                         .setUv(c[2], c[3])
-                        .setOverlay(OverlayTexture.NO_OVERLAY)
-                        .setLight(light)
-                        .setNormal(last, 0.0f, 1.0f, 0.0f);
+                        .setColor(WHITE, WHITE, WHITE, alpha)
+                        .setLight(light);
             }
             drawn++;
         }
@@ -366,7 +398,7 @@ public final class WakeRenderer {
         int drawn = 0;
         VertexConsumer rings = buffers.getBuffer(RING);
         for (Ripple ripple : SplashTracker.ripples()) {
-            long age = Math.max(0L, (long) Math.floor(now - ripple.born()));
+            double age = Math.max(0.0, now - ripple.born());
             if (age > SplashTracker.RING_LIFE_TICKS) {
                 continue;
             }
@@ -381,8 +413,8 @@ public final class WakeRenderer {
         for (int frame = 0; frame < FLECKS.length; frame++) {
             VertexConsumer flecks = buffers.getBuffer(FLECKS[frame]);
             for (Ripple ripple : SplashTracker.ripples()) {
-                long age = Math.max(0L, (long) Math.floor(now - ripple.born()));
-                if (age > SplashTracker.RING_LIFE_TICKS || (age / FLECK_FRAME_TICKS + ripple.born()) % FLECKS.length != frame) {
+                double age = Math.max(0.0, now - ripple.born());
+                if (age > SplashTracker.RING_LIFE_TICKS || ((long) Math.floor(age) / FLECK_FRAME_TICKS + ripple.born()) % FLECKS.length != frame) {
                     continue;
                 }
                 int alpha = (int) Math.round(Splash.foamAlpha(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS) * 255.0);
@@ -408,20 +440,18 @@ public final class WakeRenderer {
 
     /** One square on the water over {@code ripple}, {@code lift} above it, {@code radius} to each side, its texture turned {@code quarterTurns}. */
     private static int square(VertexConsumer consumer, PoseStack.Pose pose, Ripple ripple, double lift, float radius, int alpha, int light, int quarterTurns) {
-        float x = (float) ripple.x();
-        float y = (float) (ripple.surfaceY() + lift);
-        float z = (float) ripple.z();
+        float x = (float) (ripple.x() - origin.x);
+        float y = (float) (ripple.surfaceY() + lift - origin.y);
+        float z = (float) (ripple.z() - origin.z);
         // Counter-clockwise seen from above, as the mesh's quads are, for the same reason.
         float[][] corners = {{-radius, -radius, 0, 0}, {-radius, radius, 0, 1}, {radius, radius, 1, 1}, {radius, -radius, 1, 0}};
         for (int i = 0; i < 4; i++) {
             float[] c = corners[i];
             float[] uv = corners[(i + quarterTurns) % 4];
             consumer.addVertex(pose, x + c[0], y, z + c[1])
-                    .setColor(255, 255, 255, alpha)
                     .setUv(uv[2], uv[3])
-                    .setOverlay(OverlayTexture.NO_OVERLAY)
-                    .setLight(light)
-                    .setNormal(pose, 0.0f, 1.0f, 0.0f);
+                    .setColor(WHITE, WHITE, WHITE, alpha)
+                    .setLight(light);
         }
         return 1;
     }

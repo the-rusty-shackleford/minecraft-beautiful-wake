@@ -98,6 +98,21 @@ public final class Wake {
     }
 
     /**
+     * effects: returns how much of the wake is left {@code age} ticks --
+     * fractional, so it moves every frame and not once a tick -- after the
+     * hull passed, along {@link #foamAlpha}'s curve: 1 at the hull, 0 at the
+     * end of its life<br>
+     * throws: {@link IllegalArgumentException} if {@code lifeTicks < 1} or {@code age} is negative or not finite
+     */
+    public static double fade(double age, int lifeTicks) {
+        if (lifeTicks < 1 || !(age >= 0.0) || Double.isInfinite(age)) {
+            throw new IllegalArgumentException("bad fade arguments: age " + age + " life " + lifeTicks);
+        }
+        double along = Math.min(1.0, age / lifeTicks);
+        return Math.pow(1.0 - along, 1.5);
+    }
+
+    /**
      * effects: returns how many spray droplets to throw this tick for a wake
      * of {@code intensity}, spray starting at {@code sprayFrom} intensity and
      * reaching {@code maxPerTick} at full: a bow throws nothing at a paddle

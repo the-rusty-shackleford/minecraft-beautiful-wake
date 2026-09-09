@@ -71,7 +71,7 @@ public final class SplashTracker {
         if (level == null || mc.player == null || mc.isPaused()) {
             return;
         }
-        long now = level.getGameTime();
+        long now = WakeTracker.now();
         RIPPLES.removeIf(r -> r.age(now) > RING_LIFE_TICKS);
         if (!WakeConfig.SPLASHES.get()) {
             DRY.clear();

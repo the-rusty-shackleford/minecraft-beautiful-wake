@@ -51,6 +51,7 @@ public final class WakeTable {
 
     private final double hull;
     private final double nose;
+    private final double wash;
     private final double dFrom;
     private final int nd;
     private final int ns;
@@ -62,9 +63,10 @@ public final class WakeTable {
     private final float[] envelopeS;
     private final float[] foam;
 
-    private WakeTable(double hull, double nose) {
+    private WakeTable(double hull, double nose, double wash) {
         this.hull = hull;
         this.nose = nose;
+        this.wash = wash;
         this.dFrom = -hull * nose - STEP;
         this.nd = (int) Math.ceil((REACH - dFrom) / STEP) + 1;
         double sMax = WakeField.halfWidth(hull, nose, REACH) + WakeField.EDGE + STEP;
@@ -83,7 +85,7 @@ public final class WakeTable {
                 int at = i * ns + j;
                 base[at] = (float) WakeField.base(hull, nose, 1.0, 1.0, d, s);
                 envelope[at] = (float) (WakeField.edgeFade(hull, nose, d, s) * WakeField.chevronEnvelope(hull, d));
-                foam[at] = (float) WakeField.foam(hull, nose, 1.0, d, s);
+                foam[at] = (float) WakeField.foam(hull, nose, 1.0, d, s, wash);
             }
         }
         // Slopes from the grid's own neighbours: across the track the
@@ -111,15 +113,28 @@ public final class WakeTable {
      * throws: {@link IllegalArgumentException} if {@code hull <= 0} or {@code nose <= 0}
      */
     public static WakeTable of(double hull, double nose) {
-        if (!(hull > 0.0) || Double.isInfinite(hull) || !(nose > 0.0) || Double.isInfinite(nose)) {
-            throw new IllegalArgumentException("hull and nose must be finite and > 0, were " + hull + " and " + nose);
-        }
-        return new WakeTable(hull, nose);
+        return of(hull, nose, 0.0);
     }
 
-    /** effects: returns whether this table was built for {@code p}'s hull and nose */
+    /**
+     * effects: returns the field tabulated for a hull {@code hull} wide with a nose {@code nose} hulls long and {@code wash} round the body<br>
+     * throws: {@link IllegalArgumentException} if {@code hull <= 0}, {@code nose <= 0} or {@code wash} is outside {@code [0, 1]}
+     */
+    public static WakeTable of(double hull, double nose, double wash) {
+        if (!(hull > 0.0) || Double.isInfinite(hull) || !(nose > 0.0) || Double.isInfinite(nose) || !(wash >= 0.0 && wash <= 1.0)) {
+            throw new IllegalArgumentException("hull and nose must be finite and > 0 and wash in [0, 1], were " + hull + ", " + nose + " and " + wash);
+        }
+        return new WakeTable(hull, nose, wash);
+    }
+
+    /** effects: returns whether this table was built for {@code p}'s hull, nose and wash */
     public boolean fits(WakeParams p) {
-        return hull == p.hullWidth() && nose == p.nose();
+        return hull == p.hullWidth() && nose == p.nose() && wash == p.wash();
+    }
+
+    /** effects: returns the wash this was built with */
+    public double wash() {
+        return wash;
     }
 
     /** effects: returns the hull width this was built for */

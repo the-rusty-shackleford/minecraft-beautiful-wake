@@ -59,8 +59,13 @@ public final class Splash {
      * {@code [0, MAX_STRENGTH]}, {@code age < 0} or {@code lifeTicks < 1}
      */
     public static double ringRadius(double strength, long age, int lifeTicks) {
+        return ringRadius(strength, (double) age, lifeTicks);
+    }
+
+    /** effects: as {@link #ringRadius(double, long, int)} at a fractional age, so a ring moves every frame and not once a tick */
+    public static double ringRadius(double strength, double age, int lifeTicks) {
         check(strength, age, lifeTicks);
-        double along = Math.min(1.0, (double) age / lifeTicks);
+        double along = Math.min(1.0, age / lifeTicks);
         double start = 0.25 + 0.15 * strength;
         double end = 0.4 + 1.4 * strength;
         return start + (end - start) * Math.sqrt(along);
@@ -73,8 +78,13 @@ public final class Splash {
      * throws: as {@link #ringRadius}
      */
     public static double ringAlpha(double strength, long age, int lifeTicks) {
+        return ringAlpha(strength, (double) age, lifeTicks);
+    }
+
+    /** effects: as {@link #ringAlpha(double, long, int)} at a fractional age, so a ring moves every frame and not once a tick */
+    public static double ringAlpha(double strength, double age, int lifeTicks) {
         check(strength, age, lifeTicks);
-        double along = Math.min(1.0, (double) age / lifeTicks);
+        double along = Math.min(1.0, age / lifeTicks);
         return Math.min(1.0, strength) * Math.pow(1.0 - along, 1.5);
     }
 
@@ -87,12 +97,17 @@ public final class Splash {
      * throws: as {@link #ringRadius}
      */
     public static double foamAlpha(double strength, long age, int lifeTicks) {
+        return foamAlpha(strength, (double) age, lifeTicks);
+    }
+
+    /** effects: as {@link #foamAlpha(double, long, int)} at a fractional age */
+    public static double foamAlpha(double strength, double age, int lifeTicks) {
         check(strength, age, lifeTicks);
         if (strength <= FOAM_FROM) {
             return 0.0;
         }
         double level = Math.min(1.0, (strength - FOAM_FROM) / (FOAM_FULL - FOAM_FROM));
-        double along = Math.min(1.0, (double) age / lifeTicks);
+        double along = Math.min(1.0, age / lifeTicks);
         return level * Math.pow(1.0 - along, 1.2);
     }
 
@@ -108,8 +123,8 @@ public final class Splash {
         return (int) Math.min(12, Math.round(3.0 * strength));
     }
 
-    private static void check(double strength, long age, int lifeTicks) {
-        if (!(strength >= 0.0 && strength <= MAX_STRENGTH) || age < 0 || lifeTicks < 1) {
+    private static void check(double strength, double age, int lifeTicks) {
+        if (!(strength >= 0.0 && strength <= MAX_STRENGTH) || !(age >= 0.0) || Double.isInfinite(age) || lifeTicks < 1) {
             throw new IllegalArgumentException("bad ring arguments: strength " + strength + " age " + age + " life " + lifeTicks);
         }
     }

@@ -42,8 +42,8 @@ modpack as a client-only file.
 
 ## How it is verified
 
-`./gradlew build`: 62 JUnit tests on `domain`; the booth's ten checks and
-thirteen photographs (`-PskipBooth` to omit), the last four of them the
+`./gradlew build`: 64 JUnit tests on `domain`, one of them the frame-to-frame smoothness of a steady run; the booth's eleven checks and
+fourteen photographs (`-PskipBooth` to omit), the last four of them the
 booth's own player wading and driving; the at-speed checks assert relief
 (a bow wave over a tenth of a block, a leaning normal) and bubbles. The
 look is judged from the booth's photos and in the pack. A mesh build is
@@ -79,6 +79,9 @@ coming from"). 2.2.0: chevrons pinned to the water by each sample's arc (a sharp
 no longer swings the old wake), no wake dragged under a diver or after a
 flier, the intensity ramp a curve with no floor ("snapped in"), the
 swimmer's wake from twice the body's width at full strength, every quad
-culled so a shader pack never sees a back face. Open: a player's wake
-reported dark under Complementary from a view the booth has not
-reproduced; a ring that is not a perfect circle.
+culled so a shader pack never sees a back face. 2.3.0: the particle-shader render type after the swimmer's wake was
+found sunk by Complementary's alpha push (D-0007); the trail on
+start-of-tick positions and a clock of its own; no thinning; fractional
+ages; soft clamp and smoothstep ramps; the swimmer's wash and boosted
+foam; the smoothness test. Rusty, of the shader booth run: "Thats it.
+Thats the win". Open: a ring that is not a perfect circle.

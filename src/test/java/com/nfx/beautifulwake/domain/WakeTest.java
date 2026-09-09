@@ -84,6 +84,17 @@ final class WakeTest {
     }
 
     @Test
+    void theFadeIsFoamAlphasCurveAtAnyFractionOfATick() {
+        assertEquals(1.0, Wake.fade(0.0, 80), 1e-9);
+        assertEquals(Wake.foamAlpha(1.0, 40, 80), Wake.fade(40.0, 80), 1e-9);
+        assertTrue(Wake.fade(40.25, 80) < Wake.fade(40.0, 80) && Wake.fade(40.25, 80) > Wake.fade(40.5, 80), "moves between ticks");
+        assertEquals(0.0, Wake.fade(80.0, 80), 1e-9);
+        assertEquals(0.0, Wake.fade(800.0, 80), 1e-9);
+        assertThrows(IllegalArgumentException.class, () -> Wake.fade(-1.0, 80));
+        assertThrows(IllegalArgumentException.class, () -> Wake.fade(1.0, 0));
+    }
+
+    @Test
     void sprayStartsPartWayUpAndGrowsFasterThanTheSpeedDoes() {
         assertEquals(0, Wake.sprayCount(0.0, 0.3, 8));
         assertEquals(0, Wake.sprayCount(0.3, 0.3, 8));

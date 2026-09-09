@@ -19,3 +19,4 @@ tags: [index]
 | D-0004 | The wake is a surface in relief: a height field meshed over the water, shaded, edged and lined by texture, with a bubble burst at the bow |
 | D-0005 | Foam is pixels at the game's density, uneven and animated; the wake is scaled to a rowboat; a splash foams by its weight |
 | D-0006 | Every quad on the water is wound counter-clockwise seen from above; the booth can run under the pack's shaders |
+| D-0007 | The wake is drawn through the particle shader; the trail samples start-of-tick positions on a clock of its own; smoothness is measured |

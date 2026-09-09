@@ -33,20 +33,25 @@ package com.nfx.beautifulwake.domain;
  *                     its lines reach before fading, and a scale on the heights and the bubbles;
  *                     the V's angle and its width at the hull are the hull's whatever the size
  * @param nose         how far ahead of the hull's centre the outline's rounded nose reaches, in hulls
+ * @param wash         how much white water is churned up round the body itself, {@code [0, 1]}: a boat's hull parts
+ *                     the water cleanly, a wader's legs and a swimmer's arms thrash it white
+ * @param foamBoost    a scale on the foam's coverage, at least 1: a swimmer's is thicker for its speed than a hull's
  */
 public record WakeParams(double hullWidth, int lifeTicks, double minSpeed, double fullSpeed, double textureTicks,
-                         double lift, double strength, double floor, double relief, double size, double nose) {
+                         double lift, double strength, double floor, double relief, double size, double nose, double wash, double foamBoost) {
     public WakeParams {
         if (!(hullWidth > 0.0) || lifeTicks < 1 || !(minSpeed >= 0.0) || !(fullSpeed > minSpeed) || !(textureTicks > 0.0)
                 || !Double.isFinite(lift) || !(strength > 0.0 && strength <= 1.0) || !(floor >= 0.0 && floor <= 1.0)
-                || !(relief >= 0.0) || Double.isInfinite(relief) || !(size > 0.0 && size <= 2.0) || !(nose > 0.0 && nose <= 2.0)) {
+                || !(relief >= 0.0) || Double.isInfinite(relief) || !(size > 0.0 && size <= 2.0) || !(nose > 0.0 && nose <= 2.0)
+                || !(wash >= 0.0 && wash <= 1.0) || !(foamBoost >= 1.0) || Double.isInfinite(foamBoost)) {
             throw new IllegalArgumentException("bad wake params: " + hullWidth + " " + lifeTicks + " " + minSpeed + " "
-                    + fullSpeed + " " + textureTicks + " " + lift + " " + strength + " " + floor + " " + relief + " " + size + " " + nose);
+                    + fullSpeed + " " + textureTicks + " " + lift + " " + strength + " " + floor + " " + relief + " " + size + " " + nose
+                    + " " + wash + " " + foamBoost);
         }
     }
 
-    /** A hull's: full strength, no floor, full relief, full size, a boat's nose. */
+    /** A hull's: full strength, no floor, full relief, full size, a boat's nose, no wash, plain foam. */
     public WakeParams(double hullWidth, int lifeTicks, double minSpeed, double fullSpeed, double textureTicks, double lift) {
-        this(hullWidth, lifeTicks, minSpeed, fullSpeed, textureTicks, lift, 1.0, 0.0, 1.0, 1.0, WakeField.HULL_NOSE);
+        this(hullWidth, lifeTicks, minSpeed, fullSpeed, textureTicks, lift, 1.0, 0.0, 1.0, 1.0, WakeField.HULL_NOSE, 0.0, 1.0);
     }
 }

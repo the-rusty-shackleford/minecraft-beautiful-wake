@@ -87,9 +87,6 @@ public final class WakeMesh {
     public static final double EDGE_INSIDE = -3.0;
     /** Rows laid ahead of the hull's centre for the bow wave and the nose, as fractions of the nose's length. */
     private static final double[] AHEAD = {1.0, 0.85, 0.65, 0.4, 0.15};
-    /** Rows thin out with age: every sample this young, then every second, then every third. */
-    public static final int EVERY_SAMPLE_UNTIL = 24;
-    public static final int EVERY_SECOND_UNTIL = 60;
     /** How far past the V's edge the grid reaches, so the edge's fade has room. */
     private static final double MARGIN = WakeField.EDGE + 0.15;
     /** Blocks across one repeat of the foam texture. */
@@ -100,8 +97,8 @@ public final class WakeMesh {
     private static final double SHADE_STRENGTH = 1.6;
     /** The brightest a slope gets. */
     public static final float SHADE_MAX = 1.25f;
-    /** The darkest. */
-    public static final float SHADE_MIN = 0.55f;
+    /** The darkest: no darker, or a shader pack's particle program takes a vertex this grey for smoke and thins it. */
+    public static final float SHADE_MIN = 0.6f;
     /** The tightest turn a row can follow on the inside, as a fraction of the turn's radius: past it rows would fold over each other. */
     private static final double INSIDE_OF_TURN = 0.85;
     /** How far behind the hull, in blocks, the sheet and its lines fall to a third at full size; the size scales it. */
@@ -116,10 +113,6 @@ public final class WakeMesh {
      * before it. The intensity at each row is the wake
      * the speed there made; the skin and the foam fade with the sample's
      * age as foam does.
-     *
-     * <p>Rows thin out with age -- every sample for the youngest, then
-     * every second, then every third -- the chevrons being wide enough
-     * that a row a block apart still draws them.
      *
      * @param samples a trail's samples, oldest first
      * @param now     the game tick, with any fraction of the next
@@ -136,26 +129,14 @@ public final class WakeMesh {
             throw new IllegalArgumentException("table is for a hull " + table.hull() + " wide with a nose of " + table.nose()
                     + ", params for " + p.hullWidth() + " and " + p.nose());
         }
-        long tickNow = (long) Math.floor(now);
-        // The samples apart from one another, thinned with age: the intensity
-        // still comes from the full trail, which the windowed speed reads.
+        // The samples apart from one another. Every sample is a row: thinning
+        // the old ones by their place in the list made the row set flip each
+        // time the oldest was pruned, and the whole tail flickered.
         List<Sample> apart = new ArrayList<>();
-        List<Integer> index = new ArrayList<>();
-        int kept = -1;
-        for (int i = 0; i < samples.size(); i++) {
-            Sample s = samples.get(i);
-            if (!apart.isEmpty() && apart.get(apart.size() - 1).distanceTo(s) <= 1e-6) {
-                continue;
+        for (Sample s : samples) {
+            if (apart.isEmpty() || apart.get(apart.size() - 1).distanceTo(s) > 1e-6) {
+                apart.add(s);
             }
-            long age = tickNow - s.tick();
-            int every = age <= EVERY_SAMPLE_UNTIL ? 1 : age <= EVERY_SECOND_UNTIL ? 2 : 3;
-            boolean last = i == samples.size() - 1;
-            if (!last && kept >= 0 && i - kept < every) {
-                continue;
-            }
-            apart.add(s);
-            index.add(i);
-            kept = i;
         }
         int n = apart.size();
         if (n < 2) {
@@ -168,17 +149,21 @@ public final class WakeMesh {
         List<List<Vertex>> rows = new ArrayList<>();
         Sample head = apart.get(n - 1);
         double[] heading = heading(apart, n - 1);
-        double headIntensity = intensityAt(samples, index.get(n - 1), p);
+        double headIntensity = intensityAt(apart, n - 1, p);
         double hull = p.hullWidth();
         double noseLength = hull * p.nose();
         for (double ahead : AHEAD) {
             rows.add(row(head.x() + heading[0] * ahead * noseLength, head.surfaceY(), head.z() + heading[1] * ahead * noseLength,
-                    heading, -ahead * noseLength, head.arc() + ahead * noseLength, head.tick(), headIntensity, 0L, p, columns, 0.0, table));
+                    heading, -ahead * noseLength, head.arc() + ahead * noseLength, Math.min(now, (double) head.tick()), headIntensity, 0.0, p, columns, 0.0, table));
         }
         for (int i = n - 1; i >= 0; i--) {
             Sample s = apart.get(i);
-            long age = Math.max(0L, tickNow - s.tick());
-            rows.add(row(s.x(), s.surfaceY(), s.z(), heading(apart, i), behind[i], s.arc(), s.tick(), intensityAt(samples, index.get(i), p), age, p,
+            double age = Math.max(0.0, now - s.tick());
+            // A sample from the future is the hull's position this frame, part
+            // way through a tick: its texture time is now, or the churn's
+            // texture would stretch and snap back once a tick.
+            double textureTick = s.tick() > now ? now : s.tick();
+            rows.add(row(s.x(), s.surfaceY(), s.z(), heading(apart, i), behind[i], s.arc(), textureTick, intensityAt(apart, i, p), age, p,
                     columns, curvature(apart, i), table));
         }
         for (List<Vertex> row : rows) {
@@ -198,8 +183,8 @@ public final class WakeMesh {
      * {@code curvature} (positive turning to starboard), only as far as the
      * turn's radius allows before rows would fold over one another.
      */
-    private static List<Vertex> row(double cx, double surfaceY, double cz, double[] heading, double d, double arc, long tick,
-                                    double intensity, long age, WakeParams p, int columns, double curvature, WakeTable table) {
+    private static List<Vertex> row(double cx, double surfaceY, double cz, double[] heading, double d, double arc, double tick,
+                                    double intensity, double age, WakeParams p, int columns, double curvature, WakeTable table) {
         double hull = p.hullWidth();
         double px = -heading[1];   // starboard
         double pz = heading[0];
@@ -212,8 +197,8 @@ public final class WakeMesh {
             portHalf = Math.min(half, INSIDE_OF_TURN / -curvature);
         }
         // The sheet fades with age, and with distance behind the hull by the wake's size.
-        double ageFade = Wake.foamAlpha(1.0, age, p.lifeTicks()) * Math.exp(-Math.max(0.0, d) / (REACH_AT_FULL_SIZE * p.size()));
-        double chevronStart = Math.max(0.0, Math.min(1.0, (d - hull * WakeField.CHEVRON_FROM) / hull));
+        double ageFade = Wake.fade(age, p.lifeTicks()) * Math.exp(-Math.max(0.0, d) / (REACH_AT_FULL_SIZE * p.size()));
+        double chevronStart = WakeField.smooth((d - hull * WakeField.CHEVRON_FROM) / hull);
         int side = columns / 2;
         List<Vertex> row = new ArrayList<>(columns);
         for (int j = 0; j < columns; j++) {
@@ -230,9 +215,11 @@ public final class WakeMesh {
             // Crests stand up; troughs are shaded by their normals but drawn
             // level, never below the lift: a shader pack's water surface
             // waves a little under the still level, and a sheet that dipped
-            // through it flickered along the cut.
-            double h = Math.max(0.0, scale * (table.base(d, s) + envelope * cos));
-            double foam = Math.min(1.0, Math.sqrt(intensity) * table.foam(d, s)) * ageFade;
+            // through it flickered along the cut. The clamp is soft, so a
+            // vertex leaving the level starts up gently rather than with a
+            // crease that would run along the sheet as the hull moves.
+            double h = aboveLevel(scale * (table.base(d, s) + envelope * cos));
+            double foam = Math.min(1.0, p.foamBoost() * Math.sqrt(intensity) * table.foam(d, s)) * ageFade;
             // The normal from the slope along and across the track; d runs
             // backward along the track, so a rise with d falls along the
             // heading. A step back along the track is a step down the arc,
@@ -255,6 +242,18 @@ public final class WakeMesh {
                     (float) Math.max(0.0, Math.min(1.0, foam)), shade(nx / len, 1.0 / len, nz / len)));
         }
         return row;
+    }
+
+    /** How wide the soft clamp's knee is, in blocks: within this much of the level the rise is eased in. */
+    private static final double KNEE = 0.04;
+
+    /**
+     * effects: returns {@code h} kept above the level smoothly: {@code h}
+     * itself well above zero, nearly zero well below, and a smooth curve
+     * through the knee between -- {@code max(0, h)} without the corner
+     */
+    public static double aboveLevel(double h) {
+        return 0.5 * (h + Math.sqrt(h * h + KNEE * KNEE));
     }
 
     /**
@@ -296,20 +295,35 @@ public final class WakeMesh {
         return new double[] {x / len, y / len, z / len};
     }
 
-    /** The unit heading at sample {@code i}: toward the next sample, the last taking the one before. */
+    /**
+     * The unit heading at sample {@code i}: from the sample before to the
+     * sample after, so a little sideways noise in one sample does not turn
+     * its whole row; at either end, along the one leg there is.
+     */
     private static double[] heading(List<Sample> apart, int i) {
         int n = apart.size();
-        Sample from = i + 1 < n ? apart.get(i) : apart.get(i - 1);
-        Sample to = i + 1 < n ? apart.get(i + 1) : apart.get(i);
+        // The head's heading reaches two samples back: it points the nose,
+        // and the head is a position part way through a tick.
+        Sample from = apart.get(Math.max(0, i == n - 1 ? i - 2 : i - 1));
+        Sample to = apart.get(Math.min(n - 1, i + 1));
         double dx = to.x() - from.x();
         double dz = to.z() - from.z();
         double len = Math.sqrt(dx * dx + dz * dz);
         return len < 1e-9 ? new double[] {1.0, 0.0} : new double[] {dx / len, dz / len};
     }
 
-    /** The intensity at sample {@code i}: the speed over a window of ticks round it, through the wake's ramp. */
+    /**
+     * The intensity at sample {@code i}: the speed over a window of ticks
+     * round it, through the wake's ramp. The last sample never enters a
+     * window as its far end: it is the hull's position part way through
+     * a tick, and read as a whole tick's travel it is a slow step that
+     * would bob the bow's intensity every frame. It takes its neighbour's.
+     */
     private static double intensityAt(List<Sample> apart, int i, WakeParams p) {
         int n = apart.size();
+        if (i == n - 1 && n > 2) {
+            return intensityAt(apart, n - 2, p);
+        }
         int half = Trail.SPEED_WINDOW / 2;
         Sample s = apart.get(i);
         int lo = i;
@@ -317,7 +331,7 @@ public final class WakeMesh {
         while (lo > 0 && s.tick() - apart.get(lo - 1).tick() <= half) {
             lo--;
         }
-        while (hi + 1 < n && apart.get(hi + 1).tick() - s.tick() <= half) {
+        while (hi + 1 < n - 1 && apart.get(hi + 1).tick() - s.tick() <= half) {
             hi++;
         }
         if (lo == hi) {

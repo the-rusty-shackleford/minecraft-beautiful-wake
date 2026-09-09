@@ -42,10 +42,14 @@ side only.
 
 ## How it works
 
-The trail is sampled from where a craft actually was, tick by tick -- not
-from its motion vector -- so a boat any mod moves any way makes a wake, and
-the speed a client reads off a remote boat, which arrives in steps, is
-averaged over a few ticks.
+The trail is sampled from where a craft actually was at the start of each
+tick -- not from its motion vector -- so a boat any mod moves any way makes
+a wake, and the speed a client reads off a remote boat, which arrives in
+steps, is averaged over a few ticks. The renderer puts the craft's
+interpolated position on the end each frame, so the wake starts at the
+hull. Smoothness is a test: the mesh built over seventeen frames of a
+steady run must never drop and restore a row, and every vertex must move
+evenly.
 
 The wake is a height field in the hull's frame: at every point so far
 behind the hull and so far across, how high the water stands and how much
@@ -59,8 +63,14 @@ costs a fraction of a millisecond. The game's own water cannot be
 displaced from a mod, so the wake is drawn as its own surface just over
 it: crests stand proud of the water, troughs sink out of sight under it.
 
-The mesh is drawn three times with the entity translucent render type,
-right after the level's translucent blocks, taking the water's own light:
+The mesh is drawn three times on a render type of the mod's own over the
+game's particle shader -- translucent, lit by the water's light, back
+faces culled, no depth write -- right after the level's translucent
+blocks. Not the entity render type: shader packs make assumptions about
+entity geometry that a sheet on the water breaks (Complementary flips a
+back face's normal and pushes any vertex with alpha under a half behind
+what is beneath it, which sank a swimmer's whole faded wake); particles
+are the one translucent thing every pack draws at every alpha. The passes:
 the pale sheet with the edge line, mapped across by the distance from the
 V's edge so the line is crisp however coarse the grid; the chevron lines,
 mapped along by the chevron phase so a line lies on every ridge; and the
@@ -110,12 +120,11 @@ The sheet, the lines, the foam and the bubbles are custom geometry in the
 translucent pass, lit by the water's light and shaded by their own normals.
 Vanilla and Sodium are fine with that, and so is Complementary under Iris,
 which the booth can photograph (below). Every quad on the water is wound
-counter-clockwise seen from above: Complementary flips the normal of a
-back face before lighting it, and a wake wound the other way is lit from
-below and drawn dark. Another pack can still light entity geometry its own
-way, and then `wake.skin`, `wake.lines` and `wake.foam` are the switches
-and `wake.relief` the dial. Spray and splashes are particles and are
-always fine.
+counter-clockwise seen from above and drawn through the particle shader,
+so a shader pack has nothing to flip and no alpha to push. Another pack
+can still colour particles its own way, and then `wake.skin`, `wake.lines`
+and `wake.foam` are the switches and `wake.relief` the dial. Spray and
+splashes are particles and are always fine.
 
 ## Building
 

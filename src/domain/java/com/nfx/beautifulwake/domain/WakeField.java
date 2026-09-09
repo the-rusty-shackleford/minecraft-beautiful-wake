@@ -110,8 +110,7 @@ public final class WakeField {
         if (outside >= EDGE) {
             return 0.0;
         }
-        double t = outside / EDGE;
-        return 1.0 - t * t * (3.0 - 2.0 * t);
+        return 1.0 - smooth(outside / EDGE);
     }
 
     /**
@@ -156,7 +155,7 @@ public final class WakeField {
         double chevron = 0.0;
         if (d > 0.0) {
             // Both of these begin under the stern half of the hull, rising from nothing at its centre.
-            double rise = Math.min(1.0, d / (hull * 0.5));
+            double rise = smooth(d / (hull * 0.5));
             // The stern trough: a dip right behind the hull, filling in over a length or two.
             double troughD = (d - hull * 0.5) / (hull * 1.1);
             double troughS = s / (hull * 0.6);
@@ -196,7 +195,7 @@ public final class WakeField {
         if (from <= 0.0) {
             return 0.0;
         }
-        double start = Math.min(1.0, from / hull);
+        double start = smooth(from / hull);
         return CHEVRON_HEIGHT * start * Math.exp(-d / CHEVRON_DECAY);
     }
 
@@ -229,7 +228,21 @@ public final class WakeField {
      * {@code intensity} is outside {@code [0, 1]}
      */
     public static double foam(double hull, double nose, double intensity, double d, double s) {
+        return foam(hull, nose, intensity, d, s, 0.0);
+    }
+
+    /**
+     * effects: as {@link #foam(double, double, double, double, double)},
+     * with {@code wash} of white water churned up round the body itself --
+     * a disc a hull across on the body, thrashed white by legs and arms --
+     * which a clean hull does without<br>
+     * throws: also if {@code wash} is outside {@code [0, 1]}
+     */
+    public static double foam(double hull, double nose, double intensity, double d, double s, double wash) {
         check(hull, intensity, 1.0);
+        if (!(wash >= 0.0 && wash <= 1.0)) {
+            throw new IllegalArgumentException("wash must be in [0, 1], was " + wash);
+        }
         if (intensity == 0.0) {
             return 0.0;
         }
@@ -238,18 +251,30 @@ public final class WakeField {
             return 0.0;
         }
         double a = Math.abs(s);
+        double body = wash * Math.exp(-Math.pow(Math.hypot(d, s) / (hull * 0.55), 4.0));
         // The churn: a band the hull's width and more, rising under the
         // stern half of the hull to solid at the stern, thinning behind.
         double stern = d - hull * 0.5;
         double churnWidth = hull * (0.55 + 0.05 * Math.max(0.0, stern));
-        double rise = Math.max(0.0, Math.min(1.0, (d + hull * 0.1) / (hull * 0.6)));
+        double rise = smooth((d + hull * 0.1) / (hull * 0.6));
         double churn = rise * Math.exp(-Math.pow(a / churnWidth, 4.0)) * Math.exp(-Math.max(0.0, stern) / (hull * 4.5));
         // The bow's shoulders: foam breaking either side of the bow and
         // streaming back along the hull's sides, thickest at the bow.
         double shoulderD = (d + hull * 0.3) / (hull * 0.5);
         double shoulderS = (a - hull * 0.52) / (hull * 0.3);
         double shoulder = Math.exp(-shoulderD * shoulderD - shoulderS * shoulderS);
-        return Math.min(1.0, edge * Math.sqrt(intensity) * (churn + shoulder));
+        return Math.min(1.0, edge * Math.sqrt(intensity) * (churn + shoulder + body));
+    }
+
+    /** effects: returns {@code t} clamped to {@code [0, 1]} and eased at both ends: no corner where a ramp begins or ends */
+    public static double smooth(double t) {
+        if (t <= 0.0) {
+            return 0.0;
+        }
+        if (t >= 1.0) {
+            return 1.0;
+        }
+        return t * t * (3.0 - 2.0 * t);
     }
 
     private static void check(double hull, double intensity, double relief) {

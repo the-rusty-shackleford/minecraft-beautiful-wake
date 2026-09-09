@@ -66,8 +66,8 @@ public final class WakeTracker {
      */
     public record Tracked(Craft.Kind kind, Trail trail, BowFoam foam, double width, double surfaceY, long seenAt, long sampledAt) {}
 
-    /** One table being built or built, for one hull width and nose. */
-    private record Building(double hull, double nose, CompletableFuture<WakeTable> future) {}
+    /** One table being built or built, for one hull width, nose and wash. */
+    private record Building(double hull, double nose, double wash, CompletableFuture<WakeTable> future) {}
 
     /**
      * The field's tables, one per hull width and nose the client has met:
@@ -86,13 +86,14 @@ public final class WakeTracker {
     public static Optional<WakeTable> table(WakeParams p) {
         double hull = p.hullWidth();
         double nose = p.nose();
+        double wash = p.wash();
         for (int i = 0; i < TABLES.size(); i++) {
             Building b = TABLES.get(i);
-            if (b.hull() == hull && b.nose() == nose) {
+            if (b.hull() == hull && b.nose() == nose && b.wash() == wash) {
                 return Optional.ofNullable(b.future().getNow(null));
             }
         }
-        TABLES.add(new Building(hull, nose, CompletableFuture.supplyAsync(() -> WakeTable.of(hull, nose))));
+        TABLES.add(new Building(hull, nose, wash, CompletableFuture.supplyAsync(() -> WakeTable.of(hull, nose, wash))));
         return Optional.empty();
     }
 
@@ -103,6 +104,18 @@ public final class WakeTracker {
     }
 
     private static final Map<Integer, Tracked> TRACKED = new HashMap<>();
+    /**
+     * The wake's clock: one per client tick, never set back. The level's
+     * game time is the server's, rewritten on the client every second, and
+     * a tick that repeats or is skipped there would drop a sample and the
+     * head with it for a frame.
+     */
+    private static long ticks = 0L;
+
+    /** effects: returns the wake's clock: the number of client ticks so far */
+    public static long now() {
+        return ticks;
+    }
     /** The bubbles' own dice: the level's random is the game's, not a plain generator. */
     private static final Random BUBBLE_RANDOM = new Random();
     /** Above this intensity the bow throws water. */
@@ -128,6 +141,7 @@ public final class WakeTracker {
 
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         TRACKED.clear();
+        ticks = 0L;
     }
 
     public static void onClientTick(ClientTickEvent.Post event) {
@@ -136,17 +150,17 @@ public final class WakeTracker {
         if (level == null || mc.player == null || mc.isPaused()) {
             return;
         }
-        long now = level.getGameTime();
+        long now = ++ticks;
         Vec3 eye = mc.gameRenderer.getMainCamera().getPosition();
         double reach = WakeConfig.MAX_DISTANCE.get();
         int lifeTicks = WakeConfig.lifeTicks();
 
         for (Entity entity : level.entitiesForRendering()) {
-            Optional<Craft.Kind> kind = Craft.kindOf(entity);
+            OptionalDouble surface = Craft.surface(level, entity);
+            Optional<Craft.Kind> kind = Craft.kindOf(entity, surface);
             if (kind.isEmpty() || entity.distanceToSqr(eye) > reach * reach) {
                 continue;
             }
-            OptionalDouble surface = Craft.surface(level, entity);
             Tracked tracked = TRACKED.get(entity.getId());
             if (tracked == null || tracked.trail().lifeTicks() != lifeTicks) {
                 tracked = new Tracked(kind.get(), new Trail(lifeTicks), new BowFoam(), entity.getBbWidth(), surface.orElse(entity.getY()), now, -1L);
@@ -155,7 +169,11 @@ public final class WakeTracker {
             tracked.foam().tick(now, surfaceY);
             long sampledAt = tracked.sampledAt();
             if (surface.isPresent()) {
-                tracked.trail().add(new Sample(entity.getX(), surfaceY, entity.getZ(), now));
+                // The position at the START of this tick, the same point the
+                // renderer's interpolation starts from: sampled at the end,
+                // the head would sit behind the sample and every row's
+                // distance behind the hull would sawtooth once a tick.
+                tracked.trail().add(new Sample(entity.xo, surfaceY, entity.zo, now));
                 bubbles(level, entity, tracked, surfaceY, now);
                 spray(level, entity, tracked, surfaceY);
                 sampledAt = now;
@@ -200,7 +218,7 @@ public final class WakeTracker {
             return;
         }
         double[] heading = tracked.trail().heading();
-        tracked.foam().throwOff(BUBBLE_RANDOM, entity.getX(), surfaceY, entity.getZ(), heading[0], heading[1],
+        tracked.foam().throwOff(BUBBLE_RANDOM, entity.xo, surfaceY, entity.zo, heading[0], heading[1],
                 p.hullWidth(), intensity, count, now);
     }
 
@@ -230,8 +248,8 @@ public final class WakeTracker {
         for (int i = 0; i < count; i++) {
             double side = random.nextBoolean() ? half : -half;
             double along = bow * (0.4 + 0.6 * random.nextDouble());
-            double x = entity.getX() + hx * along + px * side;
-            double z = entity.getZ() + hz * along + pz * side;
+            double x = entity.xo + hx * along + px * side;
+            double z = entity.zo + hz * along + pz * side;
             double outward = 0.08 + 0.18 * intensity * random.nextDouble();
             double up = 0.12 + 0.28 * intensity * random.nextDouble();
             level.addParticle(ParticleTypes.SPLASH, x, surfaceY + 0.05, z,

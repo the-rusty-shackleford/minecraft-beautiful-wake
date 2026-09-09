@@ -51,8 +51,18 @@ public final class Craft {
     /** How far above the water surface the wake's still level sits, against z-fighting with the water's own face. */
     private static final double LIFT = 0.02;
 
-    /** effects: returns what kind of wake-maker {@code entity} is, if any */
-    public static Optional<Kind> kindOf(Entity entity) {
+    /** A swimmer whose eye is deeper than this below the surface has dived, and makes no wake. */
+    private static final double DIVED = 0.5;
+
+    /**
+     * effects: returns what kind of wake-maker {@code entity} is, if any,
+     * {@code surface} being the water surface under it if it is over water.
+     * A swimmer is a living thing in water, not riding, whose eye is at or
+     * near the surface: a swimming stroke bobs the eye a little under, and
+     * a rule on the eye being out of the water dropped the swimmer on
+     * alternate ticks; only a real dive, {@link #DIVED} under, ends the wake.
+     */
+    public static Optional<Kind> kindOf(Entity entity, OptionalDouble surface) {
         if (entity instanceof Boat) {
             return Optional.of(Kind.WATERCRAFT);
         }
@@ -61,7 +71,7 @@ public final class Craft {
             return Optional.of(Kind.WATERCRAFT);
         }
         if (WakeConfig.SWIMMERS.get() && entity instanceof LivingEntity && entity.getVehicle() == null
-                && entity.isInWater() && !entity.isUnderWater()) {
+                && entity.isInWater() && surface.isPresent() && entity.getEyeY() >= surface.getAsDouble() - DIVED) {
             return Optional.of(Kind.SWIMMER);
         }
         return Optional.empty();
@@ -79,6 +89,8 @@ public final class Craft {
     private static final double SWIMMER_RELIEF = 0.8;
     /** A swimmer's wake is made by a hull this many times the body's width: the water a wader pushes is wider than their legs. */
     private static final double SWIMMER_HULL = 2.0;
+    /** A swimmer's foam is this much thicker for its speed than a hull's: legs and arms thrash water a hull parts cleanly. */
+    private static final double SWIMMER_FOAM = 1.8;
 
     /**
      * effects: returns the shape of {@code kind}'s wake for a body
@@ -93,10 +105,10 @@ public final class Craft {
         double size = WakeConfig.SCALE.get();
         return switch (kind) {
             case WATERCRAFT -> new WakeParams(Math.max(0.6, width), WakeConfig.lifeTicks(),
-                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief, size, WakeField.HULL_NOSE);
+                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief, size, WakeField.HULL_NOSE, 0.0, 1.0);
             case SWIMMER -> new WakeParams(Math.max(0.6, width * SWIMMER_HULL), WakeConfig.lifeTicks(),
                     WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, LIFT,
-                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF, size, WakeField.SWIMMER_NOSE);
+                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF, size, WakeField.SWIMMER_NOSE, 1.0, SWIMMER_FOAM);
         };
     }
 

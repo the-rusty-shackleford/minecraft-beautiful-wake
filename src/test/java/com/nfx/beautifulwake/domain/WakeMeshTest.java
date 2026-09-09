@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Partitions. Samples: none, one, two, many, coincident. Columns: even,
  * too few, odd. The table: another hull's. Rows: ahead of the bow, the
- * bow, behind, thinned with age; every row the same length; the middle
+ * bow, behind, one per sample; every row the same length; the middle
  * column on the track. Heights: the bow's hump
  * above the water, ridges and dips behind, nothing at rest. Normals: unit,
  * upright on flat water, leaning on a slope. Skin and foam: inside the V,
@@ -38,7 +38,9 @@ import org.junit.jupiter.api.Test;
  * foam pinned to the tick. A curved track bends the
  * grid; a tight turn holds the inside short. Shade: flat, toward, away,
  * clamped, on a mesh. Size: fades sooner, stands lower, as wide at the
- * hull. A trail at rest makes no mesh.
+ * hull. Smoothness: over a steady run, no row over a sample vanishes and
+ * returns, and positions and alphas move evenly frame to frame. A trail
+ * at rest makes no mesh.
  */
 final class WakeMeshTest {
     private static final WakeParams P = new WakeParams(1.4, 90, 0.075, 0.35, 20.0, 0.015);
@@ -75,7 +77,7 @@ final class WakeMeshTest {
     }
 
     @Test
-    void theGridHasARowPerYoungSampleAndSomeAheadEveryRowTheSameLength() {
+    void theGridHasARowPerSampleAndSomeAheadEveryRowTheSameLength() {
         WakeMesh.Mesh mesh = WakeMesh.build(run(0.4, 20), 20, P, COLUMNS, T);
         assertTrue(mesh.rows().size() > 21, "rows ahead of the bow too, had " + mesh.rows().size());
         for (List<WakeMesh.Vertex> row : mesh.rows()) {
@@ -91,15 +93,12 @@ final class WakeMeshTest {
     }
 
     @Test
-    void oldRowsThinOutButTheOldestAndNewestStay() {
+    void everySampleIsARowTheNewestFirstBehindTheNoseAndTheOldestLast() {
         WakeMesh.Mesh mesh = WakeMesh.build(run(0.4, 90), 90, P, COLUMNS, T);
-        int behind = mesh.rows().size() - 5;
-        // 25 young rows, then every second of the next 36 ticks, then every third of the last 30, and the oldest.
-        assertTrue(behind < 91 && behind > 50, "thinned, had " + behind + " rows behind the bow");
+        assertEquals(91 + 5, mesh.rows().size(), "a row per sample and five ahead");
         assertEquals(36.0, mesh.rows().get(5).get(COLUMNS / 2).x(), 1e-9, "the newest sample is the bow row");
         assertEquals(0.0, mesh.rows().get(mesh.rows().size() - 1).get(COLUMNS / 2).x(), 1e-9, "the oldest is the last row");
-        // Young rows are every sample: consecutive x a sample apart.
-        for (int r = 5; r < 5 + WakeMesh.EVERY_SAMPLE_UNTIL; r++) {
+        for (int r = 5; r + 1 < mesh.rows().size(); r++) {
             assertEquals(0.4, mesh.rows().get(r).get(COLUMNS / 2).x() - mesh.rows().get(r + 1).get(COLUMNS / 2).x(), 1e-9);
         }
     }
@@ -116,12 +115,15 @@ final class WakeMeshTest {
             }
         }
         assertTrue(top > 63.0 + P.lift() + 0.1, "a bow wave stands up, top was " + top);
-        assertEquals(63.0 + P.lift(), bottom, 1e-9, "nothing below the still level and the lift");
+        assertTrue(bottom >= 63.0 + P.lift() && bottom < 63.0 + P.lift() + 0.021, "nothing below the still level and the lift, and the deepest trough is level: " + (bottom - 63.0 - P.lift()));
+        assertEquals(0.0, WakeMesh.aboveLevel(-1.0), 1e-3);
+        assertEquals(1.0, WakeMesh.aboveLevel(1.0), 1e-3);
+        assertTrue(WakeMesh.aboveLevel(0.0) > 0.0 && WakeMesh.aboveLevel(0.0) < 0.021, "a small lift at the knee");
         // The trough is still there in the normals: somewhere level, the surface leans.
         boolean leaningWhileLevel = false;
         for (List<WakeMesh.Vertex> row : mesh.rows()) {
             for (WakeMesh.Vertex v : row) {
-                if (Math.abs(v.y() - (63.0 + P.lift())) < 1e-9 && v.ny() < 0.999) {
+                if (Math.abs(v.y() - (63.0 + P.lift())) < 0.021 && v.ny() < 0.999) {
                     leaningWhileLevel = true;
                 }
             }
@@ -294,7 +296,7 @@ final class WakeMeshTest {
 
     @Test
     void aSmallerSizeFadesTheSheetSoonerAndStandsLower() {
-        WakeParams small = new WakeParams(1.4, 90, 0.075, 0.35, 20.0, 0.015, 1.0, 0.0, 1.0, 0.5, WakeField.HULL_NOSE);
+        WakeParams small = new WakeParams(1.4, 90, 0.075, 0.35, 20.0, 0.015, 1.0, 0.0, 1.0, 0.5, WakeField.HULL_NOSE, 0.0, 1.0);
         WakeMesh.Mesh full = WakeMesh.build(run(0.4, 80), 80, P, COLUMNS, T);
         WakeMesh.Mesh half = WakeMesh.build(run(0.4, 80), 80, small, COLUMNS, T);
         int far = full.rows().size() - 10;
@@ -304,10 +306,137 @@ final class WakeMeshTest {
         assertTrue(halfFar.lines() < fullFar.lines() * 0.8f, "lines too");
         double fullTop = full.rows().stream().flatMap(List::stream).mapToDouble(WakeMesh.Vertex::y).max().orElseThrow() - 63.0 - P.lift();
         double halfTop = half.rows().stream().flatMap(List::stream).mapToDouble(WakeMesh.Vertex::y).max().orElseThrow() - 63.0 - P.lift();
-        assertEquals(fullTop / 2.0, halfTop, 1e-9, "half as tall");
+        assertEquals(fullTop / 2.0, halfTop, 0.003, "half as tall");
         // At the hull the sheet is as wide either way: the outline is the hull's.
         assertEquals(full.rows().get(5).get(0).x(), half.rows().get(5).get(0).x(), 1e-9);
         assertEquals(full.rows().get(5).get(0).z(), half.rows().get(5).get(0).z(), 1e-9);
+    }
+
+    /**
+     * The mesh a client would draw at {@code now} for a boat that has run
+     * east at {@code speed} since tick 0: a sample per whole tick, and the
+     * boat's interpolated position this frame on the end, as the renderer
+     * adds it.
+     */
+    private static WakeMesh.Mesh frame(double speed, double now) {
+        int tick = (int) Math.floor(now);
+        List<Sample> samples = new ArrayList<>();
+        for (int t = Math.max(0, tick - P.lifeTicks()); t <= tick; t++) {   // pruned as a trail prunes
+            samples.add(new Sample(t * speed, 63.0, 0.0, t, t * speed));
+        }
+        double x = now * speed;
+        samples.add(new Sample(x, 63.0, 0.0, tick + 1, x));
+        return WakeMesh.build(samples, now, P, COLUMNS, T);
+    }
+
+    /** The rows of {@code mesh} that lie on whole-tick samples, keyed by the sample's x: the ahead rows and the head are left out. */
+    private static java.util.Map<Long, List<WakeMesh.Vertex>> sampleRows(WakeMesh.Mesh mesh, double speed, double now) {
+        java.util.Map<Long, List<WakeMesh.Vertex>> rows = new java.util.HashMap<>();
+        for (List<WakeMesh.Vertex> row : mesh.rows()) {
+            double x = row.get(COLUMNS / 2).x();
+            double tick = x / speed;
+            if (Math.abs(tick - Math.rint(tick)) < 1e-6 && tick <= Math.floor(now) + 1e-9) {
+                rows.put(Math.round(tick), row);
+            }
+        }
+        return rows;
+    }
+
+    @Test
+    void aSteadyRunIsSmoothFrameToFrame() {
+        // Frames a quarter tick apart over four ticks of a boat at speed. Between
+        // one frame and the next, no row over a sample may vanish and come back,
+        // and every vertex over a sample must move evenly -- the same step each
+        // frame -- in position and in alpha: a flip-flop is a second difference.
+        double speed = 0.4;
+        List<WakeMesh.Mesh> frames = new ArrayList<>();
+        List<Double> times = new ArrayList<>();
+        for (int k = 0; k <= 16; k++) {
+            double now = 100.0 + k * 0.25;
+            frames.add(frame(speed, now));
+            times.add(now);
+        }
+        // A row over a sample, once drawn, is drawn in every following frame until it is pruned for good.
+        java.util.Map<Long, List<Integer>> presence = new java.util.TreeMap<>();
+        for (int k = 0; k < frames.size(); k++) {
+            for (Long tick : sampleRows(frames.get(k), speed, times.get(k)).keySet()) {
+                presence.computeIfAbsent(tick, key -> new ArrayList<>()).add(k);
+            }
+        }
+        for (var entry : presence.entrySet()) {
+            List<Integer> at = entry.getValue();
+            assertEquals(at.get(at.size() - 1) - at.get(0) + 1, at.size(),
+                    "the row over tick " + entry.getKey() + " comes and goes: drawn at frames " + at);
+        }
+        double worstPosition = 0.0;
+        double worstAlpha = 0.0;
+        String where = "";
+        for (int k = 1; k + 1 < frames.size(); k++) {
+            var before = sampleRows(frames.get(k - 1), speed, times.get(k - 1));
+            var at = sampleRows(frames.get(k), speed, times.get(k));
+            var after = sampleRows(frames.get(k + 1), speed, times.get(k + 1));
+            for (Long tick : before.keySet()) {
+                if (!after.containsKey(tick)) {
+                    continue;   // pruned by age between the frames: allowed
+                }
+                assertTrue(at.containsKey(tick), "the row over tick " + tick + " vanished at frame " + k + " and came back");
+                for (int j = 0; j < COLUMNS; j++) {
+                    WakeMesh.Vertex a = before.get(tick).get(j);
+                    WakeMesh.Vertex b = at.get(tick).get(j);
+                    WakeMesh.Vertex c = after.get(tick).get(j);
+                    double position = Math.hypot(Math.hypot(c.x() - 2 * b.x() + a.x(), c.z() - 2 * b.z() + a.z()), c.y() - 2 * b.y() + a.y());
+                    double alpha = Math.max(Math.abs(c.skin() - 2 * b.skin() + a.skin()),
+                            Math.max(Math.abs(c.lines() - 2 * b.lines() + a.lines()), Math.abs(c.foam() - 2 * b.foam() + a.foam())));
+                    if (position > worstPosition) {
+                        worstPosition = position;
+                        where = "position at tick " + tick + " column " + j + " frame " + k;
+                    }
+                    if (alpha > worstAlpha) {
+                        worstAlpha = alpha;
+                    }
+                }
+            }
+        }
+        // The bow wave passing over a row is motion, and a hull's length of it is a few hundredths a frame; a flip-flop is more.
+        assertTrue(worstPosition < 0.012, "vertices move evenly frame to frame; worst second difference " + worstPosition + " (" + where + ")");
+        // The churn forms behind the stern over a couple of ticks: a steep but smooth onset.
+        assertTrue(worstAlpha < 0.1, "alphas change evenly frame to frame; worst second difference " + worstAlpha);
+        // And nothing flickers: over the run a vertex's height or alpha may turn round as a wave passes, not keep turning.
+        int worstReversals = 0;
+        String flicker = "";
+        for (Long tick : presence.keySet()) {
+            for (int j = 0; j < COLUMNS; j++) {
+                for (int q = 0; q < 4; q++) {
+                    int reversals = 0;
+                    double previousStep = 0.0;
+                    Double previous = null;
+                    double floor = q == 0 ? 0.003 : 0.01;   // below a few millimetres, or a hundredth of alpha, nothing shows
+                    for (int k = 0; k < frames.size(); k++) {
+                        var rows = sampleRows(frames.get(k), speed, times.get(k));
+                        if (!rows.containsKey(tick)) {
+                            continue;
+                        }
+                        WakeMesh.Vertex v = rows.get(tick).get(j);
+                        double value = q == 0 ? v.y() : q == 1 ? v.skin() : q == 2 ? v.lines() : v.foam();
+                        if (previous != null) {
+                            double step = value - previous;
+                            if (Math.abs(step) > floor && previousStep != 0.0 && Math.signum(step) != Math.signum(previousStep)) {
+                                reversals++;
+                            }
+                            if (Math.abs(step) > floor) {
+                                previousStep = step;
+                            }
+                        }
+                        previous = value;
+                    }
+                    if (reversals > worstReversals) {
+                        worstReversals = reversals;
+                        flicker = (q == 0 ? "height" : q == 1 ? "skin" : q == 2 ? "lines" : "foam") + " at tick " + tick + " column " + j;
+                    }
+                }
+            }
+        }
+        assertTrue(worstReversals <= 2, "nothing flickers: most direction reversals " + worstReversals + " (" + flicker + ")");
     }
 
     @Test

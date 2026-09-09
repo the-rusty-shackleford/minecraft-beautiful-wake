@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.CameraType;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.BlockPos;
@@ -98,8 +99,9 @@ public final class WakeBooth {
     private static List<Step> steps;
     /** The tick the clock waits at for the pool's chunks to be rebuilt, after the rebuild was asked for at tick 10. */
     private static final int GATE = 40;
-    private static final long GATE_LIMIT_MS = 75_000L;
+    private static final long GATE_LIMIT_MS = 240_000L;
     private static long gateOpened = 0L;
+    private static int gateChecks = 0;
     private static Boat boat;
     private static Cow cow;
     /** Whether the script still moves the boat; the second act hands it to the player. */
@@ -136,7 +138,7 @@ public final class WakeBooth {
                 // rebuilt them by the time the first photo is due. Hold the
                 // clock at the gate until every section over the pool is
                 // compiled, or a wall-clock limit passes.
-                if (tick == GATE && !poolCompiled(mc)) {
+                if (tick == GATE && !(gateChecks++ % 10 == 0 && poolCompiled(mc))) {
                     if (gateOpened == 0L) {
                         gateOpened = System.currentTimeMillis();
                     }
@@ -157,16 +159,32 @@ public final class WakeBooth {
         }
     }
 
-    /** Whether every render section over the pool has been compiled, sampled every eight blocks. */
+    /**
+     * Whether the pool has been drawn: the player hovers over its middle
+     * looking straight down, so the middle of the frame is water once the
+     * chunks have been rebuilt and grass until then -- and the water is grey
+     * under a shader pack, so the test is for the absence of green. Read off the frame
+     * itself -- a renderer's own word on whether a section is compiled was
+     * not reliable under Sodium, and a photo of grass is worthless.
+     */
     private static boolean poolCompiled(Minecraft mc) {
-        for (int x = POOL_X0; x <= POOL_X1; x += 8) {
-            for (int z = POOL_Z0; z <= POOL_Z1; z += 8) {
-                if (!mc.levelRenderer.isSectionCompiled(new BlockPos(x, GRASS_Y, z))) {
-                    return false;
+        var target = mc.getMainRenderTarget();
+        try (NativeImage image = Screenshot.takeScreenshot(target)) {
+            int grass = 0;
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dy = -2; dy <= 2; dy++) {
+                    int argb = image.getPixelRGBA(image.getWidth() / 2 + dx * 20, image.getHeight() / 2 + dy * 20);
+                    int r = argb & 0xFF;
+                    int g = (argb >> 8) & 0xFF;
+                    int b = (argb >> 16) & 0xFF;
+                    // Grass is green by a margin; water is blue, or grey under a shader pack. Not green is what matters.
+                    if (g > r + 20 && g > b + 20) {
+                        grass++;
+                    }
                 }
             }
+            return grass == 0;
         }
-        return true;
     }
 
     private static void createWorld(Minecraft mc) {
@@ -430,7 +448,22 @@ public final class WakeBooth {
             p.teleportTo(p.serverLevel(), POOL_X0 + 12, GRASS_Y, SHELF_Z0 + 6, -90.0f, 20.0f);
         })));
         s.add(new Step(act + 216, () -> KeyMapping.set(mc.options.keyUp.getKey(), true)));
-        s.add(new Step(act + 256, () -> {
+        // Then out into the deep water, swimming on the surface, watched from behind and above.
+        s.add(new Step(act + 246, () -> {
+            KeyMapping.set(mc.options.keyUp.getKey(), false);
+            onServer(mc, p -> p.teleportTo(p.serverLevel(), POOL_X0 + 14, SURFACE - 0.3, 4, -90.0f, 25.0f));
+        }));
+        s.add(new Step(act + 252, () -> KeyMapping.set(mc.options.keyUp.getKey(), true)));
+        s.add(new Step(act + 300, () -> verdict("a swimmer in deep water leaves a wake", () -> {
+            var tracked = WakeTracker.tracked(mc.player.getId());
+            if (tracked.isEmpty()) {
+                return "the player is not tracked (in water " + mc.player.isInWater() + ", under " + mc.player.isUnderWater() + ")";
+            }
+            return tracked.get().kind() == Craft.Kind.SWIMMER && WakeRenderer.lastQuadCount() > 0
+                    ? null : "kind " + tracked.get().kind() + " quads " + WakeRenderer.lastQuadCount();
+        })));
+        s.add(new Step(act + 302, () -> shoot(mc, "booth-swim")));
+        s.add(new Step(act + 306, () -> {
             KeyMapping.set(mc.options.keyUp.getKey(), false);
             onServer(mc, p -> {
                 p.getAbilities().flying = true;
@@ -438,7 +471,7 @@ public final class WakeBooth {
                 p.teleportTo(p.serverLevel(), p.getX() + 6.0, SURFACE + 6.0, p.getZ(), -90.0f, 30.0f);
             });
         }));
-        s.add(new Step(act + 262, () -> verdict("a player who flies off leaves the wake where they left the water", () -> {
+        s.add(new Step(act + 312, () -> verdict("a player who flies off leaves the wake where they left the water", () -> {
             var tracked = WakeTracker.tracked(mc.player.getId());
             if (tracked.isEmpty()) {
                 return null;   // gone already: nothing follows them
@@ -452,8 +485,8 @@ public final class WakeBooth {
             return t.sampledAt() < mc.level.getGameTime() && gap > 4.0
                     ? null : "sampled at " + t.sampledAt() + " now " + mc.level.getGameTime() + ", newest sample " + gap + " blocks from the player";
         })));
-        s.add(new Step(act + 264, () -> shoot(mc, "booth-flown-off")));
-        s.add(new Step(act + 266, () -> {
+        s.add(new Step(act + 314, () -> shoot(mc, "booth-flown-off")));
+        s.add(new Step(act + 316, () -> {
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;
             mc.stop();
