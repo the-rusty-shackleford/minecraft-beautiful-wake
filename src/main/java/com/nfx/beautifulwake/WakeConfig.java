@@ -72,8 +72,8 @@ public final class WakeConfig {
                         "0 lays it flat.")
                 .defineInRange("relief", 1.0, 0.0, 3.0);
         SCALE = b.comment("The wake's overall size: how far behind the hull the sheet and its lines reach, how high",
-                        "it stands and how many bubbles the bow throws. 1 is a big wake for a rowboat; 0.7 fits one.")
-                .defineInRange("scale", 0.7, 0.1, 2.0);
+                        "it stands and how many bubbles the bow throws. 1 is a big wake for a rowboat; 0.65 fits one.")
+                .defineInRange("scale", 0.65, 0.1, 2.0);
         SPRAY_MAX = b.comment("Droplets thrown per tick at full speed; 0 for none.")
                 .defineInRange("sprayMax", 8, 0, 40);
         MAX_DISTANCE = b.comment("Craft farther than this from the camera, in blocks, get no wake.")

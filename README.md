@@ -94,7 +94,7 @@ its chunk, spawned there) did not fall in and splashes nothing.
 | `wake.fullSpeed` | 0.35 | blocks per tick at which the wake is at full strength |
 | `wake.lifeSeconds` | 4.5 | how long the wake lasts |
 | `wake.relief` | 1.0 | how high the wake stands: 1 is a bow wave a fifth of a block tall, 0 lays it flat |
-| `wake.scale` | 0.7 | the wake's overall size: how far behind the hull the sheet reaches, how high it stands, how many bubbles; 1 is a big wake for a rowboat |
+| `wake.scale` | 0.65 | the wake's overall size: how far behind the hull the sheet reaches, how high it stands, how many bubbles; 1 is a big wake for a rowboat |
 | `wake.sprayMax` | 8 | droplets per tick at full speed |
 | `wake.maxDistance` | 96 | blocks from the camera beyond which nothing is drawn |
 | `wake.extraWatercraft` | [] | entity type ids counted as watercraft besides boats |

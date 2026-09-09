@@ -98,7 +98,7 @@ public final class WakeMesh {
     /** The tightest turn a row can follow on the inside, as a fraction of the turn's radius: past it rows would fold over each other. */
     private static final double INSIDE_OF_TURN = 0.85;
     /** How far behind the hull, in blocks, the sheet and its lines fall to a third at full size; the size scales it. */
-    public static final double REACH_AT_FULL_SIZE = 45.0;
+    public static final double REACH_AT_FULL_SIZE = 32.0;
 
     /**
      * effects: returns the surface along {@code samples} at {@code now},
