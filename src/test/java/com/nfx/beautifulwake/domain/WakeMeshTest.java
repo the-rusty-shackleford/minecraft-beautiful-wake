@@ -104,7 +104,7 @@ final class WakeMeshTest {
     }
 
     @Test
-    void theBowStandsUpAndTheWaterBehindRisesAndDipsAroundItsLift() {
+    void theBowStandsUpAndNothingDrawsBelowTheLiftThoughTheTroughShadesItself() {
         WakeMesh.Mesh mesh = WakeMesh.build(run(0.4, 60), 60, P, COLUMNS, T);
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
@@ -115,7 +115,17 @@ final class WakeMeshTest {
             }
         }
         assertTrue(top > 63.0 + P.lift() + 0.1, "a bow wave stands up, top was " + top);
-        assertTrue(bottom < 63.0 + P.lift() - 0.03, "a trough dips, bottom was " + bottom);
+        assertEquals(63.0 + P.lift(), bottom, 1e-9, "nothing below the still level and the lift");
+        // The trough is still there in the normals: somewhere level, the surface leans.
+        boolean leaningWhileLevel = false;
+        for (List<WakeMesh.Vertex> row : mesh.rows()) {
+            for (WakeMesh.Vertex v : row) {
+                if (Math.abs(v.y() - (63.0 + P.lift())) < 1e-9 && v.ny() < 0.999) {
+                    leaningWhileLevel = true;
+                }
+            }
+        }
+        assertTrue(leaningWhileLevel, "the trough shows in the shading");
     }
 
     @Test

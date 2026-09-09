@@ -81,7 +81,7 @@ final class BowFoamTest {
             sum += b.size();
         }
         assertTrue(biggest <= BowFoam.MAX_SIZE, "never a snowball, biggest was " + biggest);
-        assertTrue(sum / foam.bubbles().size() < 0.08, "most are small, mean was " + sum / foam.bubbles().size());
+        assertTrue(sum / foam.bubbles().size() < 0.07, "most are small, mean was " + sum / foam.bubbles().size());
     }
 
     @Test

@@ -33,6 +33,10 @@ import java.util.List;
  * The bow's row is the newest sample; distance behind the bow is the
  * track distance to it, so the pattern bends with the track.
  *
+ * <p>No vertex is ever below the water's still level plus the lift:
+ * crests rise, and where the field dips the surface is drawn level and
+ * only its normal tells of the dip.
+ *
  * <p>Two texture mappings ride on every vertex. The <em>skin</em> mapping
  * is in the hull's frame: across, the distance outside the V's edge, so
  * a texture column falls on the edge wherever the V is and a line drawn
@@ -212,7 +216,11 @@ public final class WakeMesh {
         for (int j = 0; j < columns; j++) {
             double s = j < side ? -portHalf * (side - j) / side : starboardHalf * (j - side) / side;
             double scale = intensity * p.relief() * p.size();
-            double h = scale * table.height(d, s);
+            // Crests stand up; troughs are shaded by their normals but drawn
+            // level, never below the lift: a shader pack's water surface
+            // waves a little under the still level, and a sheet that dipped
+            // through it flickered along the cut.
+            double h = Math.max(0.0, scale * table.height(d, s));
             double foam = Math.min(1.0, Math.sqrt(intensity) * table.foam(d, s)) * ageFade;
             // The normal from the slope along and across the track; d runs
             // backward along the track, so a rise with d falls along the heading.

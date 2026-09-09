@@ -89,6 +89,9 @@ public final class WakeRenderer {
     private static final int FRAME_TICKS = 4;
     /** Ticks each frame of a splash's flecks is shown for. */
     private static final int FLECK_FRAME_TICKS = 3;
+    /** Within this many blocks of the camera a bubble starts to shrink and fade, and at {@link #BUBBLE_GONE} it is gone. */
+    private static final double BUBBLE_NEAR = 1.8;
+    private static final double BUBBLE_GONE = 0.5;
     private static final double RING_LIFT = 0.02;
     /** The foam sits on the ring. */
     private static final double FLECK_LIFT = 0.025;
@@ -304,18 +307,23 @@ public final class WakeRenderer {
         Quaternionf facing = camera.rotation();
         Vector3f right = new Vector3f(1, 0, 0).rotate(facing);
         Vector3f up = new Vector3f(0, 1, 0).rotate(facing);
+        Vec3 eye = camera.getPosition();
         double frame = now + partial;
         int drawn = 0;
         for (BowFoam.Bubble b : foam.bubbles()) {
-            int alpha = (int) Math.round(b.alpha(frame) * 255.0);
-            if (alpha <= 0) {
-                continue;
-            }
             double t = b.settled() ? 0.0 : partial;
             float x = (float) (b.x() + b.vx() * t);
             float y = (float) (b.y() + b.vy() * t);
             float z = (float) (b.z() + b.vz() * t);
-            float half = (float) (b.size() / 2.0);
+            // A bubble right by the eye -- the bow's, in first person -- would
+            // fill a hand's breadth of screen: it shrinks and fades out over
+            // the last block and a half instead.
+            double near = Math.min(1.0, Math.max(0.0, (eye.distanceTo(new Vec3(x, y, z)) - BUBBLE_GONE) / (BUBBLE_NEAR - BUBBLE_GONE)));
+            int alpha = (int) Math.round(b.alpha(frame) * near * 255.0);
+            if (alpha <= 0) {
+                continue;
+            }
+            float half = (float) (b.size() * near / 2.0);
             int light = LevelRenderer.getLightColor(level, BlockPos.containing(x, y + 0.3, z));
             float[][] corners = {{-1, -1, 0, 1}, {1, -1, 1, 1}, {1, 1, 1, 0}, {-1, 1, 0, 0}};
             for (float[] c : corners) {
