@@ -63,11 +63,11 @@ public final class WakeConfig {
         FULL_SPEED = b.comment("At this speed the wake is at full strength; 0.35 is a boat near its top speed.")
                 .defineInRange("fullSpeed", 0.35, 0.01, 10.0);
         LIFE_SECONDS = b.comment("How long foam lasts on the water, in seconds.")
-                .defineInRange("lifeSeconds", 4.0, 0.5, 30.0);
-        SPREAD = b.comment("How many hull widths the foam spreads to by the end of its life.")
-                .defineInRange("spread", 2.5, 1.0, 8.0);
+                .defineInRange("lifeSeconds", 4.5, 0.5, 30.0);
+        SPREAD = b.comment("How many times its starting width the foam spreads to by the end of its life.")
+                .defineInRange("spread", 2.2, 1.0, 8.0);
         SPRAY_MAX = b.comment("Droplets thrown per tick at full speed; 0 for none.")
-                .defineInRange("sprayMax", 6, 0, 40);
+                .defineInRange("sprayMax", 8, 0, 40);
         MAX_DISTANCE = b.comment("Craft farther than this from the camera, in blocks, get no wake.")
                 .defineInRange("maxDistance", 96.0, 8.0, 512.0);
         EXTRA_WATERCRAFT = b.comment("Entity types counted as watercraft besides every boat (any entity whose class is",
@@ -84,12 +84,12 @@ public final class WakeConfig {
         b.comment("A touch of the same behind a player or an animal crossing the surface.").push("swimmers");
         SWIMMERS = b.comment("Whether swimmers leave a wake at all. Nothing under water, nothing riding a boat.")
                 .define("enabled", true);
-        SWIMMER_MIN_SPEED = b.comment("Below this speed a swimmer leaves nothing; 0.04 is a slow wade.")
-                .defineInRange("minSpeed", 0.04, 0.0, 5.0);
-        SWIMMER_FULL_SPEED = b.comment("At this speed a swimmer's wake is at its strongest; 0.25 is a sprinting swim.")
-                .defineInRange("fullSpeed", 0.25, 0.01, 10.0);
+        SWIMMER_MIN_SPEED = b.comment("Below this speed a swimmer leaves nothing; 0.03 is a slow wade.")
+                .defineInRange("minSpeed", 0.03, 0.0, 5.0);
+        SWIMMER_FULL_SPEED = b.comment("At this speed a swimmer's wake is at its strongest; 0.14 is a brisk wade or an easy swim.")
+                .defineInRange("fullSpeed", 0.14, 0.01, 10.0);
         SWIMMER_STRENGTH = b.comment("How strong a swimmer's wake is next to a boat's, 0 to 1.")
-                .defineInRange("strength", 0.45, 0.05, 1.0);
+                .defineInRange("strength", 0.9, 0.05, 1.0);
         b.pop();
 
         SPEC = b.build();

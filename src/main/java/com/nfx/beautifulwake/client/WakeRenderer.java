@@ -62,6 +62,11 @@ public final class WakeRenderer {
     private static final ResourceLocation FOAM = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/foam.png");
     private static final ResourceLocation RING = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/ring.png");
     private static final double RING_LIFT = 0.02;
+    /** The halo under the foam: this much wider, this much fainter. */
+    private static final double HALO_WIDTH = 1.5;
+    private static final double HALO_ALPHA = 0.25;
+    /** How far the arms' foam slides along them per tick, in texture repeats. */
+    private static final double ARM_FLOW = -0.045;
     private static int lastQuadCount = 0;
 
     /** effects: returns how many quads the last frame drew; for the booth's eyes */
@@ -96,6 +101,10 @@ public final class WakeRenderer {
 
         RenderType type = RenderType.entityTranslucent(FOAM);
         VertexConsumer consumer = buffers.getBuffer(type);
+        // The foam on the arms flows back along them: the texture slides a
+        // little every frame, the churn behind the stern stays where the
+        // water put it.
+        float flow = (float) ((now + partial) * ARM_FLOW);
         for (Map.Entry<Integer, WakeTracker.Tracked> entry : WakeTracker.all().entrySet()) {
             if (!foam && !arms) {
                 break;
@@ -106,11 +115,16 @@ public final class WakeRenderer {
                 continue;
             }
             Params p = Craft.params(tracked.kind(), tracked.width());
+            // Back to front: the wide faint halo, the arms, the solid churn, the bow wave.
             if (foam) {
-                quads += draw(consumer, pose, level, WakeGeometry.foamStrip(samples, now, p));
+                quads += draw(consumer, pose, level, WakeGeometry.foamStrip(samples, now, p, HALO_WIDTH, HALO_ALPHA), 0.0f);
             }
-            if (arms && tracked.kind() == Craft.Kind.WATERCRAFT) {
-                quads += draw(consumer, pose, level, WakeGeometry.arms(samples, now, p));
+            if (arms) {
+                quads += draw(consumer, pose, level, WakeGeometry.arms(samples, now, p), flow);
+            }
+            if (foam) {
+                quads += draw(consumer, pose, level, WakeGeometry.foamStrip(samples, now, p), 0.0f);
+                quads += draw(consumer, pose, level, WakeGeometry.bowCrest(samples, now, p), flow);
             }
         }
         buffers.endBatch(type);
@@ -171,14 +185,14 @@ public final class WakeRenderer {
         return drawn;
     }
 
-    private static int draw(VertexConsumer consumer, PoseStack pose, ClientLevel level, List<Quad> quads) {
+    private static int draw(VertexConsumer consumer, PoseStack pose, ClientLevel level, List<Quad> quads, float vShift) {
         PoseStack.Pose last = pose.last();
         for (Quad quad : quads) {
             int light = LevelRenderer.getLightColor(level, BlockPos.containing(quad.a().x(), quad.a().y() + 0.5, quad.a().z()));
             for (Vertex v : new Vertex[] {quad.a(), quad.b(), quad.c(), quad.d()}) {
                 consumer.addVertex(last, (float) v.x(), (float) v.y(), (float) v.z())
                         .setColor(255, 255, 255, Math.round(v.alpha() * 255.0f))
-                        .setUv(v.u(), v.v())
+                        .setUv(v.u(), v.v() + vShift)
                         .setOverlay(OverlayTexture.NO_OVERLAY)
                         .setLight(light)
                         .setNormal(last, 0.0f, 1.0f, 0.0f);

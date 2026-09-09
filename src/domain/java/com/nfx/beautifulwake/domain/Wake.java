@@ -43,11 +43,26 @@ public final class Wake {
      * {@code 0 <= minSpeed < fullSpeed} or {@code speed} is negative or not finite
      */
     public static double intensity(double speed, double minSpeed, double fullSpeed) {
+        return intensity(speed, minSpeed, fullSpeed, 0.0);
+    }
+
+    /**
+     * effects: returns the wake's intensity for {@code speed} with a floor:
+     * 0 at or below {@code minSpeed}, {@code floor} just above it, 1 at or
+     * above {@code fullSpeed}, linear between -- so the slowest wake that
+     * exists is still a wake to look at, not a rumour of one<br>
+     * throws: {@link IllegalArgumentException} as the three-argument form,
+     * or if {@code floor} is outside {@code [0, 1]}
+     */
+    public static double intensity(double speed, double minSpeed, double fullSpeed, double floor) {
         if (!(minSpeed >= 0.0) || !(fullSpeed > minSpeed)) {
             throw new IllegalArgumentException("need 0 <= minSpeed < fullSpeed, had " + minSpeed + " and " + fullSpeed);
         }
         if (!(speed >= 0.0) || Double.isInfinite(speed)) {
             throw new IllegalArgumentException("speed must be finite and >= 0, was " + speed);
+        }
+        if (!(floor >= 0.0 && floor <= 1.0)) {
+            throw new IllegalArgumentException("floor must be in [0, 1], was " + floor);
         }
         if (speed <= minSpeed) {
             return 0.0;
@@ -55,7 +70,7 @@ public final class Wake {
         if (speed >= fullSpeed) {
             return 1.0;
         }
-        return (speed - minSpeed) / (fullSpeed - minSpeed);
+        return floor + (1.0 - floor) * (speed - minSpeed) / (fullSpeed - minSpeed);
     }
 
     /**
@@ -81,7 +96,9 @@ public final class Wake {
      * effects: returns how opaque foam is {@code age} ticks after the hull
      * passed, for a wake of {@code intensity}: the intensity at the stern,
      * falling to nothing at the end of the wake's life along a curve that
-     * holds early and drops late, the way foam sits a while then dissolves<br>
+     * drops quickly at first and trails off -- solid white right behind the
+     * hull, breaking into patches a boat's length back, a ghost of itself
+     * by the end<br>
      * throws: {@link IllegalArgumentException} if {@code lifeTicks < 1},
      * {@code age < 0} or {@code intensity} outside {@code [0, 1]}
      */
@@ -90,8 +107,7 @@ public final class Wake {
             throw new IllegalArgumentException("bad foamAlpha arguments: intensity " + intensity + " age " + age + " life " + lifeTicks);
         }
         double along = Math.min(1.0, (double) age / lifeTicks);
-        double remaining = 1.0 - along * along;
-        return intensity * remaining;
+        return intensity * Math.pow(1.0 - along, 1.5);
     }
 
     /**

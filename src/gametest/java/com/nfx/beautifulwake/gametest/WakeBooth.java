@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.core.BlockPos;
@@ -57,12 +59,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The check through the real path, with pictures: a flat world with a pool
- * dug into it, a boat driven through the pool at a paddle, at speed and
- * round a turn, a cow swum across it, an apple and an ingot dropped in --
- * photographed from above and from the water -- and one {@code booth: PASS}
- * or {@code booth: FAIL} line per check, which the build's gate reads.
- * Active only under {@code beautifulwake.photobooth}.
+ * The check through the real path, with pictures. Act one, scripted for
+ * the numbers: a flat world with a pool dug into it, a boat moved through
+ * the pool at a paddle, at speed and round a turn, a cow swum across it,
+ * an apple, an ingot and a block dropped in, photographed from above and
+ * from the water. Act two, the player's own: the booth's player wades
+ * across the shelf under a held key, then climbs into the boat and drives
+ * it on the boat's own controls, slow, flat out and hard over, watched from
+ * behind. One {@code booth: PASS} or {@code booth: FAIL} line per check,
+ * which the build's gate reads. Active only under
+ * {@code beautifulwake.photobooth}.
  */
 @EventBusSubscriber(modid = BoothMod.MOD_ID, value = Dist.CLIENT)
 public final class WakeBooth {
@@ -71,8 +77,9 @@ public final class WakeBooth {
     private static final Logger LOG = LoggerFactory.getLogger("Beautiful Wake booth");
     private static final boolean ACTIVE = Boolean.getBoolean("beautifulwake.photobooth");
 
-    /** The pool: two blocks of water where the flat world's grass and top dirt were. */
+    /** The pool: two blocks of water where the flat world's grass and top dirt were, and a shelf one deep for wading. */
     private static final int POOL_X0 = -34, POOL_X1 = 44, POOL_Z0 = -26, POOL_Z1 = 26;
+    private static final int SHELF_Z0 = 14;
     private static final int GRASS_Y = -61;
     private static final double SURFACE = GRASS_Y + 1 - 1.0 / 9.0;   // a source block's top
     private static final double BOAT_Y = SURFACE - 0.35;
@@ -89,6 +96,8 @@ public final class WakeBooth {
     private static List<Step> steps;
     private static Boat boat;
     private static Cow cow;
+    /** Whether the script still moves the boat; the second act hands it to the player. */
+    private static boolean scripted = true;
     private static double boatX, boatZ, boatYaw;
 
     @SubscribeEvent
@@ -148,7 +157,9 @@ public final class WakeBooth {
         for (int x = POOL_X0; x <= POOL_X1; x++) {
             for (int z = POOL_Z0; z <= POOL_Z1; z++) {
                 level.setBlock(new BlockPos(x, GRASS_Y, z), Blocks.WATER.defaultBlockState(), 3);
-                level.setBlock(new BlockPos(x, GRASS_Y - 1, z), Blocks.WATER.defaultBlockState(), 3);
+                if (z < SHELF_Z0) {
+                    level.setBlock(new BlockPos(x, GRASS_Y - 1, z), Blocks.WATER.defaultBlockState(), 3);
+                }
             }
         }
         boatX = POOL_X0 + 6;
@@ -189,7 +200,7 @@ public final class WakeBooth {
      * north-south across the pool meanwhile.
      */
     private static void drive(ServerPlayer sp) {
-        if (boat == null || tick < HOLD) {
+        if (boat == null || tick < HOLD || !scripted) {
             return;
         }
         int t = tick - HOLD;
@@ -283,7 +294,74 @@ public final class WakeBooth {
         s.add(new Step(HOLD + 330 + 80 + 18, () -> verdict("a stopped boat's wake is gone once its foam has lived out", () ->
                 WakeRenderer.lastQuadCount() == 0 ? null : WakeRenderer.lastQuadCount() + " quads still drawn")));
         s.add(new Step(HOLD + 330 + 80 + 20, () -> shoot(mc, "booth-wake-faded")));
-        s.add(new Step(HOLD + 330 + 80 + 30, () -> {
+
+        // The second act, through the real path: the player wades east across
+        // the shelf under a held key, watched from behind, then climbs into
+        // the boat and drives it with the boat's own controls -- a few ticks
+        // on the throttle, then flat out, then hard over.
+        int act = HOLD + 330 + 80 + 30;
+        s.add(new Step(act, () -> {
+            scripted = false;
+            onServer(mc, p -> {
+                p.getAbilities().flying = false;
+                p.onUpdateAbilities();
+                p.teleportTo(p.serverLevel(), POOL_X0 + 8, GRASS_Y, SHELF_Z0 + 6, -90.0f, 20.0f);
+            });
+            mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+        }));
+        s.add(new Step(act + 10, () -> KeyMapping.set(mc.options.keyUp.getKey(), true)));
+        s.add(new Step(act + 70, () -> verdict("a wading player leaves a wake of their own", () -> {
+            var tracked = WakeTracker.tracked(mc.player.getId());
+            if (tracked.isEmpty()) {
+                return "the player is not tracked (in water " + mc.player.isInWater() + ", under " + mc.player.isUnderWater() + ")";
+            }
+            WakeTracker.Tracked t = tracked.get();
+            return t.kind() == Craft.Kind.SWIMMER && t.trail().speed() > 0.03 && WakeRenderer.lastQuadCount() > 0
+                    ? null : "kind " + t.kind() + " speed " + t.trail().speed() + " quads " + WakeRenderer.lastQuadCount();
+        })));
+        s.add(new Step(act + 72, () -> shoot(mc, "booth-wade")));
+        s.add(new Step(act + 74, () -> {
+            KeyMapping.set(mc.options.keyUp.getKey(), false);
+            onServer(mc, p -> {
+                boat.setPos(p.getX() + 1.5, BOAT_Y, p.getZ() - 8.0);
+                boat.setYRot(-90.0f);
+                boat.setDeltaMovement(Vec3.ZERO);
+                p.teleportTo(p.serverLevel(), boat.getX(), BOAT_Y + 0.5, boat.getZ(), -90.0f, 25.0f);
+                p.startRiding(boat, true);
+            });
+        }));
+        s.add(new Step(act + 90, () -> {
+            // The player's boat is driven by this client, which ignores the
+            // server's word on where it points: the heading is set here.
+            var ridden = mc.level.getEntity(boat.getId());
+            if (ridden != null) {
+                ridden.setYRot(-90.0f);
+                ridden.setYBodyRot(-90.0f);
+            }
+            mc.player.setYRot(-90.0f);
+            mc.player.setXRot(28.0f);
+            KeyMapping.set(mc.options.keyUp.getKey(), true);
+        }));
+        s.add(new Step(act + 97, () -> verdict("a few ticks on the throttle is a slow boat with a small wake", () -> {
+            var tracked = WakeTracker.tracked(boat.getId());
+            if (tracked.isEmpty()) {
+                return "the boat is not tracked";
+            }
+            double speed = tracked.get().trail().speed();
+            return mc.player.getVehicle() == mc.level.getEntity(boat.getId()) && speed > 0.05 && speed < 0.3
+                    ? null : "riding " + (mc.player.getVehicle() != null) + " speed " + speed;
+        })));
+        s.add(new Step(act + 98, () -> shoot(mc, "booth-drive-slow")));
+        s.add(new Step(act + 150, () -> verdict("flat out the boat is at speed with the whole wake", () -> {
+            double speed = WakeTracker.tracked(boat.getId()).map(t -> t.trail().speed()).orElse(-1.0);
+            return speed > 0.3 && WakeRenderer.lastQuadCount() > 40 ? null : "speed " + speed + " quads " + WakeRenderer.lastQuadCount();
+        })));
+        s.add(new Step(act + 152, () -> shoot(mc, "booth-drive-fast")));
+        s.add(new Step(act + 156, () -> KeyMapping.set(mc.options.keyLeft.getKey(), true)));
+        s.add(new Step(act + 196, () -> shoot(mc, "booth-drive-turn")));
+        s.add(new Step(act + 200, () -> {
+            KeyMapping.set(mc.options.keyUp.getKey(), false);
+            KeyMapping.set(mc.options.keyLeft.getKey(), false);
             LOG.info("booth: PASS all checks ran");
             phase = Phase.DONE;
             mc.stop();

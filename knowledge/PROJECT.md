@@ -34,17 +34,22 @@ modpack as a client-only file.
 
 ## How it is verified
 
-`./gradlew build`: 27 JUnit tests on `domain`; the booth's six checks and
-eight photographs (`-PskipBooth` to omit). The look is judged from the
+`./gradlew build`: 34 JUnit tests on `domain`; the booth's nine checks and
+twelve photographs (`-PskipBooth` to omit), the last four of them the
+booth's own player wading and driving. The look is judged from the
 booth's photos and in the pack.
 
 ## Decisions
 
 D-0001 client-only, geometry not particles for the trail, the Kelvin
 angle, sampling positions not velocity; D-0002 the booth makes its own
-world.
+world; D-0003 the cel-shaded look after Rusty's "v0.0.1" verdict.
 
 ## Next
 
 Asked by Rusty 2026-09-08 and delivered in 1.0.0: the wake, swimmers,
-entry splashes. Open: none yet; feedback from the pack's players decides.
+entry splashes. 1.1.0 the same day after "it needs to be polished a LOT
+more ... like Wind Waker" and "almost no wake behind my player": the bold
+look (D-0003), swimmers at 0.9 strength with a floor, the player-driven
+booth act. Open: the look in the pack under Iris; a bow wave that curls
+rather than a bar; foam that varies more along a long straight run.

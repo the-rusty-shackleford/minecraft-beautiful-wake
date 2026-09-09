@@ -71,50 +71,78 @@ def value_noise(size: int, cells: int, seed: int):
     return out
 
 
-def foam(size: int = 64):
-    """Foam: white, denser down the middle of the strip (u = 0.5) and ragged
-    at its edges, streaked along v -- the texture repeats along the trail --
-    from two octaves of noise stretched lengthwise. Alpha is the foam's
-    coverage; the renderer multiplies it by the wake's own fade."""
-    coarse = value_noise(size, 6, 0x0B0A7)
-    fine = value_noise(size, 16, 0x5EA)
-    # Stretch along v: sample the noise at a fraction of y so streaks run down the strip.
+def worley(width: int, height: int, cells_x: int, cells_y: int, seed: int):
+    """Periodic cellular (Worley) noise on a width x height grid: the distance
+    from each pixel to the nearest of cells_x x cells_y jittered points,
+    tiling both ways, in [0, 1]."""
+    noise = Noise(seed)
+    points = [[(noise.next(), noise.next()) for _ in range(cells_x)] for _ in range(cells_y)]
+    out = [[0.0] * width for _ in range(height)]
+    for y in range(height):
+        fy = y / height * cells_y
+        for x in range(width):
+            fx = x / width * cells_x
+            cx, cy = int(fx), int(fy)
+            best = 9.0
+            for oy in (-1, 0, 1):
+                for ox in (-1, 0, 1):
+                    gx, gy = (cx + ox) % cells_x, (cy + oy) % cells_y
+                    px, py = points[gy][gx]
+                    dx = (cx + ox + px) - fx
+                    dy = (cy + oy + py) - fy
+                    best = min(best, dx * dx + dy * dy)
+            out[y][x] = min(1.0, math.sqrt(best))
+    return out
+
+
+def foam(width: int = 64, height: int = 192):
+    """Foam the way a cel-shaded sea draws it: bold white cells with crisp
+    edges over nothing, dense down the middle of the strip (u = 0.5) and
+    breaking into separate blobs toward its edges, stretched along v so the
+    cells streak down the trail. Two cell sizes overlaid so no two blobs
+    are the same. Alpha is the foam's coverage; the renderer multiplies it
+    by the wake's own fade, and the texture repeats along the trail."""
+    big = worley(width, height, 4, 7, 0xF0A)
+    small = worley(width, height, 9, 17, 0xB1B)
     px = []
-    for y in range(size):
+    for y in range(height):
         row = []
-        for x in range(size):
-            u = (x + 0.5) / size
-            n = 0.65 * coarse[(y * 2) % size][x] + 0.35 * fine[(y * 3) % size][x]
-            across = math.sin(math.pi * u) ** 1.2                     # dense in the middle, ragged at the edges
-            cover = max(0.0, min(1.0, (n * 1.6 - 0.35) * across))
-            alpha = int(255 * cover ** 0.8)
-            tint = 235 + int(20 * n)
-            row.append((min(255, tint), min(255, tint + 4), 255, alpha))
+        for x in range(width):
+            u = (x + 0.5) / width
+            n = 0.6 * (1.0 - big[y][x]) + 0.4 * (1.0 - small[y][x])   # 1 at a cell's centre, 0 at its edge
+            across = math.sin(math.pi * u) ** 0.9
+            # A crisp threshold that loosens toward the edges: solid foam in
+            # the middle, separate blobs at the sides, nothing beyond.
+            level = 0.62 - 0.30 * across
+            edge = 0.06
+            cover = max(0.0, min(1.0, (n - level) / edge))
+            alpha = int(255 * cover)
+            row.append((255, 255, 255, alpha))
         px.append(row)
     return px
 
 
 def ring(size: int = 64):
-    """A splash ring: an annulus with a soft inner and outer edge, brighter
-    on its crest, for an entry splash that expands and fades."""
+    """A splash ring: a bold annulus with a crisp crest and a fainter inner
+    ripple, for an entry splash that expands and fades."""
     px = []
     c = (size - 1) / 2.0
     for y in range(size):
         row = []
         for x in range(size):
             r = math.hypot(x - c, y - c) / c                          # 0 at the centre, 1 at the edge
-            band = math.exp(-((r - 0.78) / 0.09) ** 2)                # the crest
-            inner = 0.35 * math.exp(-((r - 0.55) / 0.12) ** 2)        # a fainter inner ripple
-            cover = max(0.0, min(1.0, band + inner)) * (1.0 if r < 0.97 else 0.0)
-            row.append((240, 246, 255, int(255 * cover)))
+            band = math.exp(-((r - 0.78) / 0.07) ** 2)                # the crest
+            inner = 0.45 * math.exp(-((r - 0.52) / 0.09) ** 2)        # a fainter inner ripple
+            cover = max(0.0, min(1.0, (band + inner) * 1.6)) * (1.0 if r < 0.97 else 0.0)
+            row.append((255, 255, 255, int(255 * cover)))
         px.append(row)
     return px
 
 
 def main(argv) -> int:
-    write_png(ASSETS / "textures/foam.png", 64, 64, foam())
+    write_png(ASSETS / "textures/foam.png", 64, 192, foam())
     write_png(ASSETS / "textures/ring.png", 64, 64, ring())
-    print("textures: foam.png, ring.png (64x64)")
+    print("textures: foam.png (64x192), ring.png (64x64)")
     return 0
 
 

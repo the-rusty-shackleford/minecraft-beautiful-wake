@@ -67,7 +67,42 @@ final class WakeGeometryTest {
         List<Sample> run = eastward(0.4, 5);
         Vertex newest = WakeGeometry.foamStrip(run, 4, touch).get(3).c();
         assertEquals(0.5f, newest.alpha(), 1e-6);
-        assertEquals(0.6 * Math.sqrt(0.5) / 2.0, newest.z(), 1e-9);
+        assertEquals(0.6 * WakeGeometry.STERN_FACTOR * Math.sqrt(0.5) / 2.0, newest.z(), 1e-9);
+    }
+
+    @Test
+    void aFloorLiftsTheSlowestWakeAndLeavesTheFastestAlone() {
+        Params floored = new Params(1.4, 2.5, 80, 0.075, 0.35, 10.0, 0.35, 0.02, 1.0, 0.35);
+        Vertex slow = WakeGeometry.foamStrip(eastward(0.08, 5), 4, floored).get(3).c();     // just above the minimum
+        assertEquals(0.35f + 0.65f * (0.08f - 0.075f) / 0.275f, slow.alpha(), 0.002f);
+        Vertex fast = WakeGeometry.foamStrip(eastward(0.4, 5), 4, floored).get(3).c();
+        assertEquals(1.0f, fast.alpha(), 1e-6);
+        assertTrue(WakeGeometry.foamStrip(eastward(0.05, 5), 4, floored).isEmpty(), "below the minimum is still nothing");
+    }
+
+    @Test
+    void theHaloIsTheStripScaledWiderAndFainter() {
+        List<Sample> run = eastward(0.4, 5);
+        Vertex core = WakeGeometry.foamStrip(run, 4, P).get(3).c();
+        Vertex halo = WakeGeometry.foamStrip(run, 4, P, 1.7, 0.35).get(3).c();
+        assertEquals(core.z() * 1.7, halo.z(), 1e-9);
+        assertEquals(core.alpha() * 0.35f, halo.alpha(), 1e-6);
+        assertThrows(IllegalArgumentException.class, () -> WakeGeometry.foamStrip(run, 4, P, 0.0, 1.0));
+    }
+
+    @Test
+    void theBowCrestSitsAheadOfTheBowAcrossTheTrackAndOnlyWhenThereIsAWake() {
+        List<Sample> run = eastward(0.4, 5);                 // the bow at x = 1.6, heading east
+        List<Quad> crest = WakeGeometry.bowCrest(run, 4, P);
+        assertEquals(1, crest.size());
+        Quad q = crest.get(0);
+        assertEquals(1.6 + 1.4 * 0.55, q.a().x(), 1e-9);
+        assertEquals(1.6 + 1.4 * 0.55 + WakeGeometry.BOW_CREST_LENGTH, q.c().x(), 1e-9);
+        assertEquals(-1.4 * 0.75, q.a().z(), 1e-9);
+        assertEquals(1.4 * 0.75, q.b().z(), 1e-9);
+        assertEquals(1.0f, q.a().alpha(), 1e-6);
+        assertTrue(WakeGeometry.bowCrest(eastward(0.05, 5), 4, P).isEmpty(), "no crest without a wake");
+        assertTrue(WakeGeometry.bowCrest(List.of(), 4, P).isEmpty());
     }
 
     @Test
@@ -92,8 +127,8 @@ final class WakeGeometryTest {
         assertTrue(last.a().z() < 0 && last.b().z() > 0, "corners either side of the track");
         assertEquals(-last.a().z(), last.b().z(), 1e-9);
         assertEquals(62.02, last.a().y(), 1e-9);
-        // The newest sample: age 0, full intensity, the hull's width, fully opaque.
-        assertEquals(0.7, last.c().z(), 1e-9);
+        // The newest sample: age 0, full intensity, the churned stern's width, fully opaque.
+        assertEquals(1.4 * WakeGeometry.STERN_FACTOR / 2.0, last.c().z(), 1e-9);
         assertEquals(1.0f, last.c().alpha());
         assertEquals(0.4f, last.c().v(), 1e-6);
         assertEquals(0.3f, last.a().v(), 1e-6);
@@ -109,8 +144,8 @@ final class WakeGeometryTest {
         Vertex newest = quads.get(quads.size() - 1).c();  // tick 80, age 0
         assertEquals(0.0f, oldest.alpha(), 1e-6);
         assertEquals(1.0f, newest.alpha(), 1e-6);
-        assertEquals(1.4 * 2.5 / 2.0, Math.abs(oldest.z()), 1e-9);
-        assertEquals(0.7, Math.abs(newest.z()), 1e-9);
+        assertEquals(1.4 * WakeGeometry.STERN_FACTOR * 2.5 / 2.0, Math.abs(oldest.z()), 1e-9);
+        assertEquals(1.4 * WakeGeometry.STERN_FACTOR / 2.0, Math.abs(newest.z()), 1e-9);
     }
 
     @Test
@@ -126,12 +161,13 @@ final class WakeGeometryTest {
         double starboardCentre = (starboard.a().z() + starboard.b().z()) / 2.0;
         assertEquals(-expected, portCentre, 1e-9);
         assertEquals(expected, starboardCentre, 1e-9);
-        assertEquals(0.35, port.b().z() - port.a().z(), 1e-9);
-        // At the bow the arms meet on the track.
+        // The far end of an arm has tapered to a fraction of its width at the bow.
+        assertEquals(0.35 * WakeGeometry.ARM_TAPER, port.b().z() - port.a().z(), 1e-9);
+        // At the bow the arms meet on the track, at their full width.
         Quad bow = arms.get(9);
         assertEquals(0.0, (bow.c().z() + bow.d().z()) / 2.0, 1e-9);
-        // Arm foam is thinner than the strip's.
-        assertTrue(bow.c().alpha() < 1.0f && bow.c().alpha() > 0.7f);
+        assertEquals(0.35, bow.c().z() - bow.d().z(), 1e-9);
+        assertTrue(bow.c().alpha() < 1.0f && bow.c().alpha() > 0.9f, "arm foam nearly as solid as the strip's");
     }
 
     @Test

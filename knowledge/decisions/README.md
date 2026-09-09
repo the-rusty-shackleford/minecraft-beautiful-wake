@@ -15,3 +15,4 @@ tags: [index]
 |----|-------|
 | D-0001 | Client-only; the trail is geometry along sampled positions, at the Kelvin angle |
 | D-0002 | The booth makes its own world, and clears it every run |
+| D-0003 | The wake is drawn bold and cel-shaded: a floor on intensity, a solid churn over a halo, thick arms, a bow wave |

@@ -53,6 +53,15 @@ final class WakeTest {
     }
 
     @Test
+    void aFlooredIntensityStartsAtTheFloorAndStillEndsAtOne() {
+        assertEquals(0.0, Wake.intensity(0.075, 0.075, 0.35, 0.35));
+        assertEquals(0.35, Wake.intensity(0.0751, 0.075, 0.35, 0.35), 0.001);
+        assertEquals(0.675, Wake.intensity(0.2125, 0.075, 0.35, 0.35), 1e-9);
+        assertEquals(1.0, Wake.intensity(0.35, 0.075, 0.35, 0.35));
+        assertThrows(IllegalArgumentException.class, () -> Wake.intensity(0.1, 0.075, 0.35, 1.5));
+    }
+
+    @Test
     void intensityRefusesNonsense() {
         assertThrows(IllegalArgumentException.class, () -> Wake.intensity(0.1, 0.3, 0.2));
         assertThrows(IllegalArgumentException.class, () -> Wake.intensity(0.1, -0.1, 0.2));
@@ -79,13 +88,13 @@ final class WakeTest {
     }
 
     @Test
-    void foamHoldsEarlyAndIsGoneAtTheEndOfItsLife() {
+    void foamIsSolidAtTheSternBreaksUpQuicklyAndIsGoneAtTheEndOfItsLife() {
         assertEquals(1.0, Wake.foamAlpha(1.0, 0, 80), 1e-9);
-        assertEquals(0.75, Wake.foamAlpha(1.0, 40, 80), 1e-9);
-        assertTrue(Wake.foamAlpha(1.0, 20, 80) > 0.9, "holds early");
+        assertEquals(Math.pow(0.5, 1.5), Wake.foamAlpha(1.0, 40, 80), 1e-9);
+        assertTrue(Wake.foamAlpha(1.0, 20, 80) < 0.7, "breaking up a quarter of the way along");
         assertEquals(0.0, Wake.foamAlpha(1.0, 80, 80), 1e-9);
         assertEquals(0.0, Wake.foamAlpha(1.0, 200, 80), 1e-9);
-        assertEquals(0.375, Wake.foamAlpha(0.5, 40, 80), 1e-9);
+        assertEquals(0.5 * Math.pow(0.5, 1.5), Wake.foamAlpha(0.5, 40, 80), 1e-9);
         assertThrows(IllegalArgumentException.class, () -> Wake.foamAlpha(1.0, 0, 0));
     }
 

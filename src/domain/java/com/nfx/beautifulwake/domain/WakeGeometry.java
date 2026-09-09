@@ -66,24 +66,39 @@ public final class WakeGeometry {
      * @param armWidth     the width of each arm of the V
      * @param lift         how far above the water surface the quads sit, against z-fighting
      * @param strength     what the intensity is scaled by: 1 for a hull, less for a swimmer's
-     *                     touch of a wake
+     *                     smaller wake
+     * @param floor        the intensity just above {@code minSpeed}: the slowest wake there is
      */
     public record Params(double hullWidth, double spread, int lifeTicks, double minSpeed, double fullSpeed,
-                         double textureTicks, double armWidth, double lift, double strength) {
+                         double textureTicks, double armWidth, double lift, double strength, double floor) {
         public Params {
             if (!(hullWidth > 0.0) || !(spread >= 1.0) || lifeTicks < 1 || !(minSpeed >= 0.0) || !(fullSpeed > minSpeed)
-                    || !(textureTicks > 0.0) || !(armWidth > 0.0) || !Double.isFinite(lift) || !(strength > 0.0 && strength <= 1.0)) {
+                    || !(textureTicks > 0.0) || !(armWidth > 0.0) || !Double.isFinite(lift) || !(strength > 0.0 && strength <= 1.0)
+                    || !(floor >= 0.0 && floor <= 1.0)) {
                 throw new IllegalArgumentException("bad wake params: " + hullWidth + " " + spread + " " + lifeTicks + " "
-                        + minSpeed + " " + fullSpeed + " " + textureTicks + " " + armWidth + " " + lift + " " + strength);
+                        + minSpeed + " " + fullSpeed + " " + textureTicks + " " + armWidth + " " + lift + " " + strength + " " + floor);
             }
         }
 
-        /** A hull's params: full strength. */
+        /** A hull's params: full strength, no floor. */
         public Params(double hullWidth, double spread, int lifeTicks, double minSpeed, double fullSpeed,
                       double textureTicks, double armWidth, double lift) {
-            this(hullWidth, spread, lifeTicks, minSpeed, fullSpeed, textureTicks, armWidth, lift, 1.0);
+            this(hullWidth, spread, lifeTicks, minSpeed, fullSpeed, textureTicks, armWidth, lift, 1.0, 0.0);
+        }
+
+        /** Params with a floor and strength. */
+        public Params(double hullWidth, double spread, int lifeTicks, double minSpeed, double fullSpeed,
+                      double textureTicks, double armWidth, double lift, double strength) {
+            this(hullWidth, spread, lifeTicks, minSpeed, fullSpeed, textureTicks, armWidth, lift, strength, 0.0);
         }
     }
+
+    /** The churned water right behind a hull is wider than the hull: the foam starts at this many beams. */
+    public static final double STERN_FACTOR = 1.35;
+    /** An arm's width at its far end, as a fraction of its width at the bow. */
+    public static final double ARM_TAPER = 0.4;
+    /** The bow wave's length along the track, in blocks. */
+    public static final double BOW_CREST_LENGTH = 0.7;
 
     /** One sample's place in the wake: its point, local heading, intensity when it was made, and age now. */
     private record Station(Sample sample, double dx, double dz, double intensity, long age, double behind) {}
@@ -100,18 +115,33 @@ public final class WakeGeometry {
      * @param p       the shape
      */
     public static List<Quad> foamStrip(List<Sample> samples, long now, Params p) {
+        return foamStrip(samples, now, p, 1.0, 1.0);
+    }
+
+    /**
+     * effects: as {@link #foamStrip(List, long, Params)}, the foam's width
+     * scaled by {@code widthScale} and its opacity by {@code alphaScale}:
+     * a wider, fainter pass under the strip is the water disturbed either
+     * side of the foam proper<br>
+     * throws: {@link IllegalArgumentException} if either scale is not positive
+     */
+    public static List<Quad> foamStrip(List<Sample> samples, long now, Params p, double widthScale, double alphaScale) {
+        if (!(widthScale > 0.0) || !(alphaScale > 0.0)) {
+            throw new IllegalArgumentException("scales must be positive, were " + widthScale + " and " + alphaScale);
+        }
         List<Station> stations = stations(samples, now, p);
         List<Quad> quads = new ArrayList<>();
+        double stern = p.hullWidth() * STERN_FACTOR * widthScale;
         for (int i = 0; i + 1 < stations.size(); i++) {
             Station s0 = stations.get(i);
             Station s1 = stations.get(i + 1);
             if (s0.intensity == 0.0 && s1.intensity == 0.0) {
                 continue;
             }
-            double w0 = Wake.foamWidth(p.hullWidth(), p.spread(), s0.intensity, s0.age, p.lifeTicks()) / 2.0;
-            double w1 = Wake.foamWidth(p.hullWidth(), p.spread(), s1.intensity, s1.age, p.lifeTicks()) / 2.0;
-            float a0 = (float) Wake.foamAlpha(s0.intensity, s0.age, p.lifeTicks());
-            float a1 = (float) Wake.foamAlpha(s1.intensity, s1.age, p.lifeTicks());
+            double w0 = Wake.foamWidth(stern, p.spread(), s0.intensity, s0.age, p.lifeTicks()) / 2.0;
+            double w1 = Wake.foamWidth(stern, p.spread(), s1.intensity, s1.age, p.lifeTicks()) / 2.0;
+            float a0 = (float) (Wake.foamAlpha(s0.intensity, s0.age, p.lifeTicks()) * alphaScale);
+            float a1 = (float) (Wake.foamAlpha(s1.intensity, s1.age, p.lifeTicks()) * alphaScale);
             float v0 = (float) (s0.sample.tick() / p.textureTicks());
             float v1 = (float) (s1.sample.tick() / p.textureTicks());
             quads.add(new Quad(
@@ -134,8 +164,11 @@ public final class WakeGeometry {
     public static List<Quad> arms(List<Sample> samples, long now, Params p) {
         List<Station> stations = stations(samples, now, p);
         List<Quad> quads = new ArrayList<>();
+        if (stations.isEmpty()) {
+            return quads;
+        }
         double tan = Math.tan(Wake.KELVIN_HALF_ANGLE);
-        double half = p.armWidth() / 2.0;
+        double length = Math.max(1e-6, stations.get(0).behind);
         for (int side = -1; side <= 1; side += 2) {
             for (int i = 0; i + 1 < stations.size(); i++) {
                 Station s0 = stations.get(i);
@@ -145,18 +178,61 @@ public final class WakeGeometry {
                 }
                 double out0 = side * s0.behind * tan;
                 double out1 = side * s1.behind * tan;
-                float a0 = (float) (Wake.foamAlpha(s0.intensity, s0.age, p.lifeTicks()) * 0.8);
-                float a1 = (float) (Wake.foamAlpha(s1.intensity, s1.age, p.lifeTicks()) * 0.8);
+                // Thick at the bow, thinning toward the end of the arm.
+                double half0 = armHalfWidth(p, s0.behind / length, s0.intensity);
+                double half1 = armHalfWidth(p, s1.behind / length, s1.intensity);
+                float a0 = (float) (Wake.foamAlpha(s0.intensity, s0.age, p.lifeTicks()) * 0.95);
+                float a1 = (float) (Wake.foamAlpha(s1.intensity, s1.age, p.lifeTicks()) * 0.95);
                 float v0 = (float) (s0.sample.tick() / p.textureTicks());
                 float v1 = (float) (s1.sample.tick() / p.textureTicks());
                 quads.add(new Quad(
-                        corner(s0, out0 - half, 0.0f, v0, a0, p.lift()),
-                        corner(s0, out0 + half, 1.0f, v0, a0, p.lift()),
-                        corner(s1, out1 + half, 1.0f, v1, a1, p.lift()),
-                        corner(s1, out1 - half, 0.0f, v1, a1, p.lift())));
+                        corner(s0, out0 - half0, 0.0f, v0, a0, p.lift()),
+                        corner(s0, out0 + half0, 1.0f, v0, a0, p.lift()),
+                        corner(s1, out1 + half1, 1.0f, v1, a1, p.lift()),
+                        corner(s1, out1 - half1, 0.0f, v1, a1, p.lift())));
             }
         }
         return quads;
+    }
+
+    /** Half an arm's width at {@code along} of its length (0 at the bow, 1 at the end), for the intensity there. */
+    private static double armHalfWidth(Params p, double along, double intensity) {
+        double taper = 1.0 - (1.0 - ARM_TAPER) * Math.min(1.0, along);
+        return p.armWidth() * taper * Math.sqrt(Math.max(intensity, 0.0)) / 2.0;
+    }
+
+    /**
+     * effects: returns the bow wave: one quad across the bow, ahead of the
+     * newest sample by a little more than half the hull, as wide as the
+     * hull and a half at full intensity, {@link #BOW_CREST_LENGTH} long,
+     * as opaque as the intensity at the bow; empty with fewer than two
+     * samples or no wake
+     */
+    public static List<Quad> bowCrest(List<Sample> samples, long now, Params p) {
+        List<Station> stations = stations(samples, now, p);
+        if (stations.isEmpty()) {
+            return List.of();
+        }
+        Station head = stations.get(stations.size() - 1);
+        if (head.intensity == 0.0) {
+            return List.of();
+        }
+        double ahead = p.hullWidth() * 0.55;
+        double half = p.hullWidth() * 0.75 * Math.sqrt(head.intensity);
+        float alpha = (float) head.intensity;
+        Sample s = head.sample;
+        double bx = s.x() + head.dx * ahead;
+        double bz = s.z() + head.dz * ahead;
+        double fx = s.x() + head.dx * (ahead + BOW_CREST_LENGTH);
+        double fz = s.z() + head.dz * (ahead + BOW_CREST_LENGTH);
+        double px = -head.dz;
+        double pz = head.dx;
+        float v = (float) (s.tick() / p.textureTicks());
+        return List.of(new Quad(
+                new Vertex(bx - px * half, s.surfaceY() + p.lift(), bz - pz * half, 0.0f, v, alpha),
+                new Vertex(bx + px * half, s.surfaceY() + p.lift(), bz + pz * half, 1.0f, v, alpha),
+                new Vertex(fx + px * half, s.surfaceY() + p.lift(), fz + pz * half, 1.0f, v + 0.5f, alpha),
+                new Vertex(fx - px * half, s.surfaceY() + p.lift(), fz - pz * half, 0.0f, v + 0.5f, alpha)));
     }
 
     /**
@@ -206,7 +282,7 @@ public final class WakeGeometry {
                 hi = Math.min(n - 1, i + 1);
             }
             double speed = apart.get(lo).distanceTo(apart.get(hi)) / Math.max(1L, apart.get(hi).tick() - apart.get(lo).tick());
-            double intensity = Wake.intensity(Math.min(speed, 100.0), p.minSpeed(), p.fullSpeed()) * p.strength();
+            double intensity = Wake.intensity(Math.min(speed, 100.0), p.minSpeed(), p.fullSpeed(), p.floor()) * p.strength();
             out.add(new Station(s, dx / length, dz / length, intensity, Math.max(0L, now - s.tick()), behind[i]));
         }
         return out;

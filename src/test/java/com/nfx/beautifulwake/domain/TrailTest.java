@@ -57,6 +57,17 @@ final class TrailTest {
     }
 
     @Test
+    void aJumpNoBoatCouldMakeStartsTheTrailAfresh() {
+        Trail trail = new Trail(80);
+        trail.add(at(0, 0, 1));
+        trail.add(at(0.4, 0, 2));
+        trail.add(at(40, 0, 3));                        // forty blocks in a tick: a teleport
+        assertEquals(List.of(at(40, 0, 3)), trail.samples());
+        trail.add(at(41, 0, 13));                       // ten blocks in ten ticks: fast, but a passage
+        assertEquals(2, trail.samples().size());
+    }
+
+    @Test
     void aSampleNoNewerThanTheLastIsIgnored() {
         Trail trail = new Trail(80);
         trail.add(at(0, 0, 100));

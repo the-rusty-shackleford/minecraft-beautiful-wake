@@ -3,16 +3,19 @@
 The water behind a boat, and the water when something goes into it. A
 client-side mod for NeoForge 1.21.1.
 
-- **A wake behind every boat.** A foam trail straight behind the hull that
-  spreads and fades over a few seconds, and the two arms of a real wake's V,
-  opening at the Kelvin angle -- 19.47 degrees either side of the track,
-  which is the angle whatever the speed -- and bending where the track bends.
-  Spray off the bow, more the faster the boat goes. All of it scales with
-  speed, from a faint ribbon at a paddle to the full pattern at a boat's top
-  speed, so it grows as the boat gathers way and dies as it drifts.
-- **A touch of the same behind a swimmer.** A player or an animal crossing
-  the surface leaves a narrower, fainter strip; nothing under water, and
-  nothing riding a boat, whose wake is the boat's.
+- **A wake behind every boat**, drawn the way a cel-shaded sea draws one:
+  a solid white churn straight behind the stern, a boat and a half wide,
+  breaking into patches a length back and spreading as it fades over a few
+  seconds, over a wider, fainter halo; the two arms of a real wake's V, thick
+  at the bow and thinning, opening at the Kelvin angle -- 19.47 degrees
+  either side of the track, which is the angle whatever the speed -- and
+  bending where the track bends, their foam flowing back along them; a bow
+  wave across the front; spray off the bow, more the faster. All of it
+  scales with speed, from a proper wake at a paddle to the full pattern at a
+  boat's top speed, so it grows as the boat gathers way and dies as it drifts.
+- **The same behind a swimmer**, smaller. A player wading or an animal
+  crossing the surface leaves a clear ribbon and a thin V; nothing under
+  water, and nothing riding a boat, whose wake is the boat's.
 - **A splash where anything enters the water.** A ring that spreads and
   fades, droplets thrown up and bubbles left under, sized by what fell and
   how fast: an apple is light, an ingot dense, a block heavy, a stack heavier
@@ -57,16 +60,16 @@ its chunk, spawned there) did not fall in and splashes nothing.
 | `wake.spray` | true | droplets off the bow |
 | `wake.minSpeed` | 0.075 | blocks per tick below which there is no wake (a slow paddle) |
 | `wake.fullSpeed` | 0.35 | blocks per tick at which the wake is at full strength |
-| `wake.lifeSeconds` | 4.0 | how long foam lasts |
-| `wake.spread` | 2.5 | hull widths the foam spreads to by the end of its life |
-| `wake.sprayMax` | 6 | droplets per tick at full speed |
+| `wake.lifeSeconds` | 4.5 | how long foam lasts |
+| `wake.spread` | 2.2 | how many times its starting width the foam spreads to by the end of its life |
+| `wake.sprayMax` | 8 | droplets per tick at full speed |
 | `wake.maxDistance` | 96 | blocks from the camera beyond which nothing is drawn |
 | `wake.extraWatercraft` | [] | entity type ids counted as watercraft besides boats |
 | `splashes.enabled` | true | rings, droplets and bubbles on entry |
 | `swimmers.enabled` | true | a wake behind swimmers |
-| `swimmers.minSpeed` | 0.04 | below this a swimmer leaves nothing |
-| `swimmers.fullSpeed` | 0.25 | a sprinting swim |
-| `swimmers.strength` | 0.45 | a swimmer's wake next to a boat's |
+| `swimmers.minSpeed` | 0.03 | below this a swimmer leaves nothing |
+| `swimmers.fullSpeed` | 0.14 | a brisk wade or an easy swim |
+| `swimmers.strength` | 0.9 | a swimmer's wake next to a boat's |
 
 The foam and the arms are custom geometry in the translucent pass. Vanilla
 and Sodium are fine with that; Iris shader packs usually are, but a pack can
@@ -81,9 +84,11 @@ and splashes are particles and are always fine.
 
 runs the plain-JUnit tests against the pure layer and, unless `-PskipBooth`
 is given, the photo booth (`./gradlew runPhotoBooth`): a dev client that
-makes a flat world with a pool, drives a boat through it at a paddle, at
+makes a flat world with a pool, moves a boat through it at a paddle, at
 speed and round a turn, swims a cow across, drops an apple, an ingot and a
-block in, photographs each into `run/booth/screenshots/` and writes one
+block in, then has its own player wade across the shelf under a held key
+and climb into the boat and drive it on the real controls -- slow, flat out,
+hard over -- photographs each into `run/booth/screenshots/` and writes one
 `booth: PASS` or `booth: FAIL` line per check to its log, which the build
 reads. It needs a display; headless, `DISPLAY=:1 Xephyr :7 -screen 1280x720
 -ac -br -noreset` then `DISPLAY=:7 __GLX_VENDOR_LIBRARY_NAME=mesa

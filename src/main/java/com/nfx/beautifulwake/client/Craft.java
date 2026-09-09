@@ -66,19 +66,24 @@ public final class Craft {
         return Optional.empty();
     }
 
+    /** The slowest wake a hull makes, as a fraction of the full one: a paddling boat still shows a proper wake. */
+    private static final double HULL_FLOOR = 0.4;
+    /** The same for a wader. */
+    private static final double SWIMMER_FLOOR = 0.5;
+
     /**
      * effects: returns the shape of {@code kind}'s wake for a body
-     * {@code width} wide: a hull's at full strength, a swimmer's narrower,
-     * slower to start and at the configured fraction of a boat's
+     * {@code width} wide: a hull's at full strength with thick arms, a
+     * swimmer's from a body and a half's width, quicker to reach full at a
+     * swimmer's speeds, at the configured fraction of a boat's, with thin arms
      */
     public static Params params(Kind kind, double width) {
-        double hull = Math.max(0.5, width);
         return switch (kind) {
-            case WATERCRAFT -> new Params(hull, WakeConfig.SPREAD.get(), WakeConfig.lifeTicks(),
-                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 10.0, 0.35, LIFT, 1.0);
-            case SWIMMER -> new Params(hull, WakeConfig.SPREAD.get(), WakeConfig.lifeTicks(),
-                    WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 10.0, 0.25, LIFT,
-                    WakeConfig.SWIMMER_STRENGTH.get());
+            case WATERCRAFT -> new Params(Math.max(0.6, width), WakeConfig.SPREAD.get(), WakeConfig.lifeTicks(),
+                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, 0.9, LIFT, 1.0, HULL_FLOOR);
+            case SWIMMER -> new Params(Math.max(0.5, width * 1.5), WakeConfig.SPREAD.get(), WakeConfig.lifeTicks(),
+                    WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, 0.35, LIFT,
+                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR);
         };
     }
 

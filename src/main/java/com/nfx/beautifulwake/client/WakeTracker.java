@@ -125,8 +125,8 @@ public final class WakeTracker {
             return;
         }
         var p = Craft.params(tracked.kind(), tracked.width());
-        double intensity = Wake.intensity(Math.min(tracked.trail().speed(), 10.0), p.minSpeed(), p.fullSpeed()) * p.strength();
-        int max = tracked.kind() == Craft.Kind.SWIMMER ? Math.min(2, WakeConfig.SPRAY_MAX.get()) : WakeConfig.SPRAY_MAX.get();
+        double intensity = Wake.intensity(Math.min(tracked.trail().speed(), 10.0), p.minSpeed(), p.fullSpeed(), p.floor()) * p.strength();
+        int max = tracked.kind() == Craft.Kind.SWIMMER ? Math.min(3, WakeConfig.SPRAY_MAX.get()) : WakeConfig.SPRAY_MAX.get();
         int count = Wake.sprayCount(intensity, SPRAY_FROM, max);
         if (count == 0) {
             return;

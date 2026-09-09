@@ -59,12 +59,18 @@ public final class Trail {
     /**
      * effects: appends {@code sample} and forgets every sample older than the
      * wake's life before it; a sample no newer than the last is ignored (the
-     * boat was sampled twice in one tick, or the clock went backwards)
+     * boat was sampled twice in one tick, or the clock went backwards); a
+     * sample farther from the last than {@link #MAX_SPEED} blocks a tick
+     * could carry it starts the trail afresh -- the boat was teleported, and
+     * no wake joins where it was to where it is
      */
     public void add(Sample sample) {
         Sample last = samples.peekLast();
         if (last != null && sample.tick() <= last.tick()) {
             return;
+        }
+        if (last != null && sample.distanceTo(last) > MAX_SPEED * (sample.tick() - last.tick())) {
+            samples.clear();
         }
         samples.addLast(sample);
         prune(sample.tick());
@@ -93,6 +99,8 @@ public final class Trail {
 
     /** Over how many ticks the speed is measured: a client sees a boat's position in steps, not per tick. */
     public static final int SPEED_WINDOW = 6;
+    /** Faster than this, in blocks per tick, a move is a teleport, not a passage through the water. */
+    public static final double MAX_SPEED = 3.0;
 
     /**
      * effects: returns the boat's speed in blocks per tick over the last
