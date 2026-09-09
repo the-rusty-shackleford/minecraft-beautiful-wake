@@ -53,9 +53,8 @@ final class WakeFieldTest {
         assertTrue(WakeField.halfWidth(HULL, NOSE, -HULL * NOSE * 0.95) < HULL * 0.65 * 0.35, "rounding off near the tip");
         assertEquals(0.0, WakeField.halfWidth(HULL, NOSE, -HULL * NOSE), 1e-9, "the tip");
         assertEquals(0.0, WakeField.halfWidth(HULL, NOSE, -HULL * 2.0), 1e-9, "nothing beyond it");
-        // A swimmer's nose is shorter, so nothing shows ahead of a wader's body.
-        assertEquals(0.0, WakeField.halfWidth(0.9, WakeField.SWIMMER_NOSE, -0.9 * WakeField.SWIMMER_NOSE), 1e-9);
-        assertTrue(0.9 * WakeField.SWIMMER_NOSE < 0.35, "inside a player's body");
+        // A swimmer has no nose either: nothing ahead of the body.
+        assertEquals(0.0, WakeField.halfWidth(0.54, WakeField.SWIMMER_NOSE, -0.01), 1e-9);
         assertThrows(IllegalArgumentException.class, () -> WakeField.halfWidth(HULL, -0.1, 1.0));
         // A boat has no nose: nothing ahead of the centre, and the centre row itself is whole.
         assertEquals(0.0, WakeField.halfWidth(HULL, WakeField.BOAT_NOSE, -0.01), 1e-9);
@@ -194,7 +193,7 @@ final class WakeFieldTest {
     @Test
     void washIsWhiteWaterRoundTheBodyItself() {
         assertEquals(WakeField.foam(HULL, NOSE, 1.0, 0.2, 0.0), WakeField.foam(HULL, NOSE, 1.0, 0.2, 0.0, 0.0), 1e-12, "no wash is the plain foam");
-        assertTrue(WakeField.foam(HULL, NOSE, 1.0, 0.0, HULL * 0.4, 1.0) > WakeField.foam(HULL, NOSE, 1.0, 0.0, HULL * 0.4, 0.0) + 0.3, "wash whitens beside the body");
+        assertTrue(WakeField.foam(HULL, NOSE, 1.0, HULL * 0.45, HULL * 0.5, 1.0) > WakeField.foam(HULL, NOSE, 1.0, HULL * 0.45, HULL * 0.5, 0.0) + 0.3, "wash whitens just behind the body");
         assertEquals(WakeField.foam(HULL, NOSE, 1.0, 12.0, 0.0, 1.0), WakeField.foam(HULL, NOSE, 1.0, 12.0, 0.0, 0.0), 1e-6, "and not far behind it");
         assertThrows(IllegalArgumentException.class, () -> WakeField.foam(HULL, NOSE, 1.0, 0.0, 0.0, 1.5));
     }

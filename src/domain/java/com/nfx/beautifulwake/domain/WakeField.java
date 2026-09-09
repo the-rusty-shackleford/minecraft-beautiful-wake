@@ -73,8 +73,8 @@ public final class WakeField {
     public static final double HULL_NOSE = 0.45;
     /** A boat's nose: none. The boat's model covers everything ahead of its centre, and rows drawn there showed as shards at the bow. */
     public static final double BOAT_NOSE = 0.0;
-    /** The same for a swimmer: inside the body, so nothing shows ahead of a wader. */
-    public static final double SWIMMER_NOSE = 0.35;
+    /** A swimmer's nose: none either. Rows ahead of the body faceted the same way a boat's did, on a smaller scale. */
+    public static final double SWIMMER_NOSE = 0.0;
 
     /**
      * effects: returns how far to either side of the track the wake reaches
@@ -240,9 +240,9 @@ public final class WakeField {
 
     /**
      * effects: as {@link #foam(double, double, double, double, double)},
-     * with {@code wash} of white water churned up round the body itself --
-     * a disc a hull across on the body, thrashed white by legs and arms --
-     * which a clean hull does without<br>
+     * with {@code wash} of white water churned up by the body itself -- a
+     * disc two hulls across just behind its centre, thrashed white by legs
+     * and arms -- which a clean hull does without<br>
      * throws: also if {@code wash} is outside {@code [0, 1]}
      */
     public static double foam(double hull, double nose, double intensity, double d, double s, double wash) {
@@ -258,7 +258,9 @@ public final class WakeField {
             return 0.0;
         }
         double a = Math.abs(s);
-        double body = wash * Math.exp(-Math.pow(Math.hypot(d, s) / (hull * 0.55), 4.0));
+        // The wash sits just behind the body's centre, where legs and arms
+        // thrash the water; the body itself covers what is ahead.
+        double body = wash * Math.exp(-Math.pow(Math.hypot(d - hull * 0.45, s) / (hull * 1.1), 4.0));
         // The churn: a band the hull's width and more, rising under the
         // stern half of the hull to solid at the stern, thinning behind.
         double stern = d - hull * 0.5;

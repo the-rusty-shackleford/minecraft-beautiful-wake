@@ -81,8 +81,9 @@ picking a texture; the edge line and the chevron lines are still, since a
 straight line that steps between frames reads as a vibration. A boat's wake starts at the hull's centre and nothing is drawn ahead of it:
 the boat's model covers that region, and rows drawn there -- the raised bow
 wave with its shading, the shoulder foam -- showed as a fan of shards at the
-bow at speed. A swimmer keeps a short rounded nose round the body, flat and
-unshaded, for the wash. In first
+bow at speed. A swimmer's wake starts at the body's centre too, from an
+outline about the body's width so its front hides behind the body, with
+the wash of white water just behind it, where legs and arms thrash. In first
 person the viewer's own sheet, lines, foam and bubbles fade out within a
 few blocks of the eye, so a swimmer's wash does not fill their view; other
 players' wakes, and every wake in third person, are drawn in full. The

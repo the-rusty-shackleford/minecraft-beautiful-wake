@@ -87,15 +87,19 @@ public final class Craft {
 
     /** A swimmer's wake stands this much lower than a hull's. */
     private static final double SWIMMER_RELIEF = 0.8;
-    /** A swimmer's wake is made by a hull this many times the body's width: the water a wader pushes is wider than their legs. */
-    private static final double SWIMMER_HULL = 2.0;
+    /**
+     * A swimmer's wake is made by a hull this many times the body's width:
+     * about the body, so the outline's front, drawn from the centre with
+     * nothing ahead of it, hides behind the body itself.
+     */
+    private static final double SWIMMER_HULL = 0.9;
     /** A swimmer's foam is this much thicker for its speed than a hull's: legs and arms thrash water a hull parts cleanly. */
     private static final double SWIMMER_FOAM = 1.8;
 
     /**
      * effects: returns the shape of {@code kind}'s wake for a body
      * {@code width} wide: a hull's at full strength and relief with nothing
-     * drawn ahead of its centre, a swimmer's from twice the body's width, quicker to
+     * drawn ahead of its centre, a swimmer's from about the body's width, quicker to
      * reach full at a swimmer's speeds, at the configured fraction of a
      * boat's, standing lower, with a nose short enough to stay inside the
      * body
@@ -106,7 +110,7 @@ public final class Craft {
         return switch (kind) {
             case WATERCRAFT -> new WakeParams(Math.max(0.6, width), WakeConfig.lifeTicks(),
                     WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief, size, WakeField.BOAT_NOSE, 0.0, 1.0);
-            case SWIMMER -> new WakeParams(Math.max(0.6, width * SWIMMER_HULL), WakeConfig.lifeTicks(),
+            case SWIMMER -> new WakeParams(Math.max(0.5, width * SWIMMER_HULL), WakeConfig.lifeTicks(),
                     WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, LIFT,
                     WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF, size, WakeField.SWIMMER_NOSE, 1.0, SWIMMER_FOAM);
         };

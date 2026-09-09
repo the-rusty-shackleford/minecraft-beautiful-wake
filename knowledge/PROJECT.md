@@ -87,5 +87,7 @@ foam; the smoothness test. Rusty, of the shader booth run: "Thats it.
 Thats the win". 2.3.1: no edge line ahead of the hull, the viewer's own wake faded near
 the eye in first person. 2.3.2: no rows at all ahead of a boat's centre
 (the shards were the nose's shaded facets and foam, two or three rows
-deep); a swimmer's nose flat and unshaded. Open: a ring
+deep); a swimmer's nose flat and unshaded. 2.3.3: no nose for swimmers either
+(the same facets on a smaller scale); the swimmer's outline about the
+body's width and its wash just behind the body. Open: a ring
 that is not a perfect circle.
