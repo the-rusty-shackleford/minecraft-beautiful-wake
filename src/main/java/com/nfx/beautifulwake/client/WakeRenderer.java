@@ -74,13 +74,14 @@ public final class WakeRenderer {
     private WakeRenderer() {}
 
     /**
-     * The foam is animated by frames: the edge line, the chevron lines and
-     * the churn each have two, the pixels stepped differently, shown turn
-     * and turn about every {@link #FRAME_TICKS} ticks so the foam shimmers
-     * and boils; the splash flecks have three, cycled per splash.
+     * The churn is animated by frames: two, the bubbles nudged differently,
+     * shown turn and turn about every {@link #FRAME_TICKS} ticks so it
+     * boils; the splash flecks have three, cycled per splash. The edge line
+     * and the chevron lines are still: a straight line that stepped between
+     * frames read as a vibration, not as foam.
      */
-    private static final RenderType[] SKIN = frames("skin", 2);
-    private static final RenderType[] LINES = frames("lines", 2);
+    private static final RenderType SKIN = RenderType.entityTranslucent(texture("skin"));
+    private static final RenderType LINES = RenderType.entityTranslucent(texture("lines"));
     private static final RenderType[] FOAM = frames("foam", 2);
     private static final RenderType[] FLECKS = frames("flecks", 3);
     private static final RenderType BUBBLE = RenderType.entityTranslucent(texture("bubble"));
@@ -172,18 +173,18 @@ public final class WakeRenderer {
         }
 
         if (skin) {
-            VertexConsumer consumer = buffers.getBuffer(SKIN[frame]);
+            VertexConsumer consumer = buffers.getBuffer(SKIN);
             for (WakeMesh.Mesh mesh : meshes) {
                 quads += drawMesh(consumer, pose, level, mesh, Pass.SKIN);
             }
-            buffers.endBatch(SKIN[frame]);
+            buffers.endBatch(SKIN);
         }
         if (lines) {
-            VertexConsumer consumer = buffers.getBuffer(LINES[frame]);
+            VertexConsumer consumer = buffers.getBuffer(LINES);
             for (WakeMesh.Mesh mesh : meshes) {
                 quads += drawMesh(consumer, pose, level, mesh, Pass.LINES);
             }
-            buffers.endBatch(LINES[frame]);
+            buffers.endBatch(LINES);
         }
         if (foam) {
             VertexConsumer consumer = buffers.getBuffer(FOAM[frame]);

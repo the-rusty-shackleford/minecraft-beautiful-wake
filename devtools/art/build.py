@@ -130,30 +130,15 @@ def blocks_across(x_pixel: int, width: int) -> float:
     return EDGE_INSIDE + (x_pixel + 0.5) / width * (EDGE_OUTSIDE - EDGE_INSIDE)
 
 
-def jitter(count: int, seed: int):
-    """A run of -1, 0 or +1 pixel offsets, mostly 0, in short runs so a
-    jittered line breaks into steps rather than fizz: the unevenness of
-    foam. A different seed is a different frame."""
-    noise = Noise(seed)
-    out = []
-    while len(out) < count:
-        v = noise.next()
-        j = -1 if v < 0.28 else (1 if v > 0.72 else 0)
-        out.extend([j] * (2 + int(noise.next() * 3)))
-    return out[:count]
-
-
-def skin(frame: int, width: int = ACROSS, height: int = ALONG):
+def skin(width: int = ACROSS, height: int = ALONG):
     """The sheet of disturbed water inside the V and the white line on its
     edge: pale blue inside, fullest down the middle and thinner toward the
     arms so the lines carry the V, a hard white line two pixels wide on the
-    edge itself, stepping in and out along the V by a pixel, and nothing
-    outside it. Rows run along the V; the two frames step differently, so
-    the edge shimmers as they alternate."""
-    steps = jitter(height, 0x5E1 + frame * 7919)
+    edge itself, and nothing outside it. One still frame: a long straight
+    line that stepped between frames read as a vibration, not as foam."""
     px = []
     for y in range(height):
-        shift = steps[y] / PX
+        shift = 0.0
         row = []
         for x in range(width):
             e = blocks_across(x, width)
@@ -168,20 +153,18 @@ def skin(frame: int, width: int = ACROSS, height: int = ALONG):
     return px
 
 
-def lines(frame: int, width: int = ACROSS, height: int = ALONG):
+def lines(width: int = ACROSS, height: int = ALONG):
     """The white lines along the chevron ridges: a line two pixels wide at
-    phase zero and a fainter one at phase one half, each stepping up and
-    down a pixel along its length and each stopping short of the V's edge
-    so it never crosses the edge line; nothing anywhere else."""
-    strong = jitter(width, 0x11E5 + frame * 7919)
-    faint = jitter(width, 0xFA1 + frame * 7919)
+    phase zero and a fainter one at phase one half, each stopping short of
+    the V's edge so it never crosses the edge line; nothing anywhere else.
+    One still frame, for the same reason as the skin's."""
     px = [[CLEAR] * width for _ in range(height)]
     for x in range(width):
         if blocks_across(x, width) > -0.18:
             continue
         for dy in (0, 1):
-            px[(dy + strong[x]) % height][x] = LINE
-        px[(height // 2 + faint[x]) % height][x] = (255, 255, 255, int(LINE[3] * 0.3))
+            px[dy][x] = LINE
+        px[height // 2][x] = (255, 255, 255, int(LINE[3] * 0.3))
     return px
 
 
@@ -288,17 +271,17 @@ def ring(size: int = 64):
 
 
 def main(argv) -> int:
+    write_png(ASSETS / "textures/skin.png", ACROSS, ALONG, skin())
+    write_png(ASSETS / "textures/lines.png", ACROSS, ALONG, lines())
     for frame in (0, 1):
-        write_png(ASSETS / f"textures/skin_{frame}.png", ACROSS, ALONG, skin(frame))
-        write_png(ASSETS / f"textures/lines_{frame}.png", ACROSS, ALONG, lines(frame))
         write_png(ASSETS / f"textures/foam_{frame}.png", int(FOAM_TILE * PX), int(FOAM_TILE * PX), foam(frame))
     for frame in (0, 1, 2):
         write_png(ASSETS / f"textures/flecks_{frame}.png", 64, 64, flecks(frame))
     write_png(ASSETS / "textures/bubble.png", PX, PX, bubble())
     write_png(ASSETS / "textures/ring.png", 64, 64, ring())
-    for stale in ("skin.png", "lines.png", "foam.png", "flecks.png"):
+    for stale in ("skin_0.png", "skin_1.png", "lines_0.png", "lines_1.png", "foam.png", "flecks.png"):
         (ASSETS / "textures" / stale).unlink(missing_ok=True)
-    print(f"textures: skin_0/1 ({ACROSS}x{ALONG}), lines_0/1 ({ACROSS}x{ALONG}), foam_0/1 ({int(FOAM_TILE * PX)}x{int(FOAM_TILE * PX)}), "
+    print(f"textures: skin ({ACROSS}x{ALONG}), lines ({ACROSS}x{ALONG}), foam_0/1 ({int(FOAM_TILE * PX)}x{int(FOAM_TILE * PX)}), "
           f"flecks_0/1/2 (64x64), bubble ({PX}x{PX}), ring (64x64)")
     return 0
 

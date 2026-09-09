@@ -17,7 +17,7 @@ client-side mod for NeoForge 1.21.1.
   along the sides, a churn of round bubbles behind the stern, and a burst
   of bubbles thrown up off the bow that fall back, float a moment and pop
   -- plus spray, more the faster. All the foam is drawn at the game's own
-  sixteen pixels to the block and shimmers between frames. All of it
+  sixteen pixels to the block, and the churn boils between frames. All of it
   scales with speed, from a proper wake at a paddle to the full pattern at
   a boat's top speed, so it grows as the boat gathers way and dies as it
   drifts; and it is sized to a rowboat, with a `scale` to make more of it.
@@ -64,9 +64,10 @@ the pale sheet with the edge line, mapped across by the distance from the
 V's edge so the line is crisp however coarse the grid; the chevron lines,
 mapped along by the chevron phase so a line lies on every ridge; and the
 foam, pinned to the water so the churn stays where the hull churned it.
-Each has two texture frames with the pixels stepped differently, shown
-turn and turn about every four ticks, so the foam shimmers and boils at no
-cost beyond picking a texture. The bow's bubbles are a small simulation --
+The churn has two texture frames with its bubbles nudged differently,
+shown turn and turn about every four ticks, so it boils at no cost beyond
+picking a texture; the edge line and the chevron lines are still, since a
+straight line that steps between frames reads as a vibration. The bow's bubbles are a small simulation --
 thrown up and outward, falling under gravity, settling and popping --
 drawn as billboards facing the camera, the one part of the wake that is
 not a surface. A splash's foam is three frames of flecks over its ring,

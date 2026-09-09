@@ -32,13 +32,13 @@ modpack as a client-only file.
   per craft, spray, the tables built off-thread and warmed at setup),
   `client/SplashTracker` (dry-last-tick, wet-now = a splash), `client/Mass`,
   `client/WakeRenderer` (`RenderLevelStageEvent.AFTER_TRANSLUCENT_BLOCKS`,
-  `RenderType.entityTranslucent`: the mesh drawn as skin, lines and foam
-  with two texture frames each cycled every four ticks, the bubbles as
+  `RenderType.entityTranslucent`: the mesh drawn as skin, lines and foam,
+  the churn with two texture frames cycled every four ticks, the bubbles as
   billboards, the splash rings with three frames of foam flecks).
 - `gametest`: the photo booth only (`WakeBooth`, `BoothMod`); it creates a
   flat world through `WorldOpenFlows.createFreshLevel`, digs a pool, drives
   a boat, swims a cow, drops items, photographs, writes verdict lines.
-- `devtools/art/build.py`: every texture, procedural, at sixteen pixels to the block: skin, lines and foam in two frames, flecks in three, the bubble and the ring.
+- `devtools/art/build.py`: every texture, procedural, at sixteen pixels to the block: skin, lines, foam in two frames, flecks in three, the bubble and the ring.
 
 ## How it is verified
 
