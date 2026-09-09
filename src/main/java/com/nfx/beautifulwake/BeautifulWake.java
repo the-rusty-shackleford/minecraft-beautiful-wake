@@ -25,13 +25,17 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 /**
- * The water behind a boat: a foam trail that spreads and fades, the two
- * arms of a real wake's V, and spray off the bow -- a touch of the same
- * behind a player or an animal crossing the surface -- and a splash, sized
- * to the thing and its fall, wherever anything goes into the water.
+ * The water behind a boat: a wake standing up out of the water -- the bow
+ * wave, the stern's trough, the chevron ridges nested inside the V --
+ * drawn as a pale sheet edged in white with lines along the ridges, a
+ * bubbling churn behind the stern and a burst of bubbles off the bow; a
+ * touch of the same behind a player or an animal crossing the surface;
+ * and a splash, sized to the thing and its fall, wherever anything goes
+ * into the water.
  *
  * <p>Client only. Every client already knows where every boat is and how
  * fast it moves, so each draws the wakes it can see and the server needs
@@ -49,5 +53,6 @@ public final class BeautifulWake {
         NeoForge.EVENT_BUS.addListener(SplashTracker::onClientTick);
         NeoForge.EVENT_BUS.addListener(SplashTracker::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(WakeRenderer::onRenderStage);
+        modBus.addListener((FMLClientSetupEvent event) -> WakeTracker.warmTables());
     }
 }

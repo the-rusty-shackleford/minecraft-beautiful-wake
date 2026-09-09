@@ -18,14 +18,19 @@
 package com.nfx.beautifulwake.client;
 
 import com.nfx.beautifulwake.WakeConfig;
+import com.nfx.beautifulwake.domain.BowFoam;
 import com.nfx.beautifulwake.domain.Sample;
 import com.nfx.beautifulwake.domain.Trail;
 import com.nfx.beautifulwake.domain.Wake;
+import com.nfx.beautifulwake.domain.WakeParams;
+import com.nfx.beautifulwake.domain.WakeTable;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.particles.ParticleTypes;
@@ -38,23 +43,64 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 /**
  * Follows every wake-maker the client can see: one {@link Trail} per
  * entity, a sample added each tick from where the entity is and how high
- * the water stands there, and the bow's spray thrown as particles.
+ * the water stands there; one {@link BowFoam} per entity, bubbles thrown
+ * off the bow each tick and moved on; and the bow's spray thrown as
+ * particles.
  *
  * <p>Cost, stated: one pass over the level's entities per tick, a trail
- * append per craft in water, and at most {@code sprayMax} particles per
- * craft per tick. Trails of entities gone from the level are dropped on
- * the tick they go; a craft out of water keeps its trail until the foam
- * has faded.
+ * append and a bubble step per craft in water, and at most
+ * {@code sprayMax} particles per craft per tick. Trails of entities gone
+ * from the level are dropped on the tick they go; a craft out of water
+ * keeps its trail until the foam has faded.
  */
 public final class WakeTracker {
     private WakeTracker() {}
 
-    /** A followed entity: its kind, its trail, and the last tick it was seen. */
-    public record Tracked(Craft.Kind kind, Trail trail, double width, long seenAt) {}
+    /** A followed entity: its kind, its trail, its bow's bubbles, the water's height last seen, and the last tick it was seen. */
+    public record Tracked(Craft.Kind kind, Trail trail, BowFoam foam, double width, double surfaceY, long seenAt) {}
+
+    /**
+     * The field's tables, one per hull width the client has met, keyed by
+     * the width in twentieths of a block: a boat's, a player's, a cow's --
+     * a handful, each built once, off the render thread, since one takes
+     * longer than a frame. A craft whose table is still building is drawn
+     * without a wake for those few frames.
+     */
+    private static final Map<Long, CompletableFuture<WakeTable>> TABLES = new HashMap<>();
+
+    /**
+     * effects: returns the field tabulated for {@code p}'s hull, or empty
+     * while it is still being built -- the build is started the first time
+     * that width is asked for
+     */
+    public static Optional<WakeTable> table(WakeParams p) {
+        double hull = p.hullWidth();
+        CompletableFuture<WakeTable> building = TABLES.computeIfAbsent(Math.round(hull * 20.0),
+                key -> CompletableFuture.supplyAsync(() -> WakeTable.of(hull)));
+        WakeTable table = building.getNow(null);
+        if (table != null && table.hull() != hull) {
+            // Two hulls within a twentieth of a block of each other: the later one gets its own.
+            building = CompletableFuture.supplyAsync(() -> WakeTable.of(hull));
+            TABLES.put(Math.round(hull * 20.0), building);
+            table = null;
+        }
+        return Optional.ofNullable(table);
+    }
+
+    /** effects: starts building the tables for the hulls every client meets first: a boat's and a player's */
+    public static void warmTables() {
+        table(Craft.params(Craft.Kind.WATERCRAFT, 1.375));
+        table(Craft.params(Craft.Kind.SWIMMER, 0.6));
+    }
 
     private static final Map<Integer, Tracked> TRACKED = new HashMap<>();
+    /** The bubbles' own dice: the level's random is the game's, not a plain generator. */
+    private static final Random BUBBLE_RANDOM = new Random();
     /** Above this intensity the bow throws water. */
     private static final double SPRAY_FROM = 0.3;
+    /** The most bubbles a bow throws in a tick, a hull's and a swimmer's. */
+    private static final int HULL_BUBBLES = 12;
+    private static final int SWIMMER_BUBBLES = 3;
 
     /** effects: returns what is followed for entity {@code id}, if anything */
     public static Optional<Tracked> tracked(int id) {
@@ -94,13 +140,16 @@ public final class WakeTracker {
             OptionalDouble surface = Craft.surface(level, entity);
             Tracked tracked = TRACKED.get(entity.getId());
             if (tracked == null || tracked.trail().lifeTicks() != lifeTicks) {
-                tracked = new Tracked(kind.get(), new Trail(lifeTicks), entity.getBbWidth(), now);
+                tracked = new Tracked(kind.get(), new Trail(lifeTicks), new BowFoam(), entity.getBbWidth(), surface.orElse(entity.getY()), now);
             }
+            double surfaceY = surface.orElse(tracked.surfaceY());
+            tracked.foam().tick(now, surfaceY);
             if (surface.isPresent()) {
-                tracked.trail().add(new Sample(entity.getX(), surface.getAsDouble(), entity.getZ(), now));
-                spray(level, entity, tracked, surface.getAsDouble());
+                tracked.trail().add(new Sample(entity.getX(), surfaceY, entity.getZ(), now));
+                bubbles(level, entity, tracked, surfaceY, now);
+                spray(level, entity, tracked, surfaceY);
             }
-            TRACKED.put(entity.getId(), new Tracked(kind.get(), tracked.trail(), entity.getBbWidth(), now));
+            TRACKED.put(entity.getId(), new Tracked(kind.get(), tracked.trail(), tracked.foam(), entity.getBbWidth(), surfaceY, now));
         }
 
         // Drop what is gone, or has left the water and let its foam fade.
@@ -110,10 +159,37 @@ public final class WakeTracker {
             Tracked t = entry.getValue();
             t.trail().prune(now);
             boolean gone = level.getEntity(entry.getKey()) == null;
-            if (gone || (now - t.seenAt() > 1 && t.trail().isEmpty())) {
+            if (gone || (now - t.seenAt() > 1 && t.trail().isEmpty() && t.foam().bubbles().isEmpty())) {
                 it.remove();
+            } else if (now - t.seenAt() > 1) {
+                t.foam().tick(now, t.surfaceY());
             }
         }
+    }
+
+    /** The wake's intensity for a craft this tick, from its trail's speed. */
+    private static double intensity(Tracked tracked, WakeParams p) {
+        return Wake.intensity(Math.min(tracked.trail().speed(), 10.0), p.minSpeed(), p.fullSpeed(), p.floor()) * p.strength();
+    }
+
+    /**
+     * The bow's bubbles: a burst of round white foam off the hull's
+     * shoulders, more and bigger the harder the bow pushes, none at a
+     * paddle. They are drawn standing up, by the renderer.
+     */
+    private static void bubbles(ClientLevel level, Entity entity, Tracked tracked, double surfaceY, long now) {
+        if (!WakeConfig.FOAM.get()) {
+            return;
+        }
+        WakeParams p = Craft.params(tracked.kind(), tracked.width());
+        double intensity = intensity(tracked, p);
+        int count = BowFoam.countFor(intensity, tracked.kind() == Craft.Kind.SWIMMER ? SWIMMER_BUBBLES : HULL_BUBBLES);
+        if (count == 0) {
+            return;
+        }
+        double[] heading = tracked.trail().heading();
+        tracked.foam().throwOff(BUBBLE_RANDOM, entity.getX(), surfaceY, entity.getZ(), heading[0], heading[1],
+                p.hullWidth(), intensity, count, now);
     }
 
     /**
@@ -124,8 +200,8 @@ public final class WakeTracker {
         if (!WakeConfig.SPRAY.get()) {
             return;
         }
-        var p = Craft.params(tracked.kind(), tracked.width());
-        double intensity = Wake.intensity(Math.min(tracked.trail().speed(), 10.0), p.minSpeed(), p.fullSpeed(), p.floor()) * p.strength();
+        WakeParams p = Craft.params(tracked.kind(), tracked.width());
+        double intensity = intensity(tracked, p);
         int max = tracked.kind() == Craft.Kind.SWIMMER ? Math.min(3, WakeConfig.SPRAY_MAX.get()) : WakeConfig.SPRAY_MAX.get();
         int count = Wake.sprayCount(intensity, SPRAY_FROM, max);
         if (count == 0) {

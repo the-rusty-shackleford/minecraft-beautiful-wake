@@ -30,13 +30,14 @@ public final class WakeConfig {
 
     public static final ModConfigSpec SPEC;
 
+    public static final ModConfigSpec.BooleanValue SKIN;
+    public static final ModConfigSpec.BooleanValue LINES;
     public static final ModConfigSpec.BooleanValue FOAM;
-    public static final ModConfigSpec.BooleanValue ARMS;
     public static final ModConfigSpec.BooleanValue SPRAY;
     public static final ModConfigSpec.DoubleValue MIN_SPEED;
     public static final ModConfigSpec.DoubleValue FULL_SPEED;
     public static final ModConfigSpec.DoubleValue LIFE_SECONDS;
-    public static final ModConfigSpec.DoubleValue SPREAD;
+    public static final ModConfigSpec.DoubleValue RELIEF;
     public static final ModConfigSpec.IntValue SPRAY_MAX;
     public static final ModConfigSpec.DoubleValue MAX_DISTANCE;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> EXTRA_WATERCRAFT;
@@ -51,21 +52,24 @@ public final class WakeConfig {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
 
         b.comment("What is drawn behind a boat.").push("wake");
-        FOAM = b.comment("The foam strip straight behind the hull, spreading and fading.")
+        SKIN = b.comment("The disturbed water inside the wake's V: a pale sheet with the bow wave, the stern's",
+                        "trough and the chevron ridges standing up out of it, edged in white.")
+                .define("skin", true);
+        LINES = b.comment("The white lines along the chevron ridges inside the V.")
+                .define("lines", true);
+        FOAM = b.comment("The churn behind the stern and the bubbles thrown up off the bow.")
                 .define("foam", true);
-        ARMS = b.comment("The two arms of the wake's V, opening at the Kelvin angle of 19.47 degrees.",
-                        "Drawn as geometry on the water; switch off if a shader pack lights it oddly.")
-                .define("arms", true);
-        SPRAY = b.comment("Water thrown off the bow at speed.")
+        SPRAY = b.comment("Droplets thrown off the bow at speed, as particles.")
                 .define("spray", true);
         MIN_SPEED = b.comment("Below this speed (blocks per tick) there is no wake; 0.075 is a slow paddle.")
                 .defineInRange("minSpeed", 0.075, 0.0, 5.0);
         FULL_SPEED = b.comment("At this speed the wake is at full strength; 0.35 is a boat near its top speed.")
                 .defineInRange("fullSpeed", 0.35, 0.01, 10.0);
-        LIFE_SECONDS = b.comment("How long foam lasts on the water, in seconds.")
+        LIFE_SECONDS = b.comment("How long the wake lasts on the water, in seconds.")
                 .defineInRange("lifeSeconds", 4.5, 0.5, 30.0);
-        SPREAD = b.comment("How many times its starting width the foam spreads to by the end of its life.")
-                .defineInRange("spread", 2.2, 1.0, 8.0);
+        RELIEF = b.comment("How high the wake stands out of the water, 1 being a bow wave a sixth of a block tall;",
+                        "0 lays it flat.")
+                .defineInRange("relief", 1.0, 0.0, 3.0);
         SPRAY_MAX = b.comment("Droplets thrown per tick at full speed; 0 for none.")
                 .defineInRange("sprayMax", 8, 0, 40);
         MAX_DISTANCE = b.comment("Craft farther than this from the camera, in blocks, get no wake.")

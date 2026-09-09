@@ -25,8 +25,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Partitions. Intensity: below the minimum, at it, between, at full, above,
- * bad bounds, bad speed. Foam width: at the stern, mid-life, at and past the
- * end of life, by intensity, bad arguments. Foam alpha: at the stern,
+ * bad bounds, bad speed. Foam alpha: at the stern,
  * mid-life (holds early), at the end, past it, by intensity. Spray: below
  * the start, at full, between (grows faster than linearly), bad arguments.
  * The Kelvin angle itself.
@@ -67,24 +66,6 @@ final class WakeTest {
         assertThrows(IllegalArgumentException.class, () -> Wake.intensity(0.1, -0.1, 0.2));
         assertThrows(IllegalArgumentException.class, () -> Wake.intensity(-0.1, 0.0, 0.2));
         assertThrows(IllegalArgumentException.class, () -> Wake.intensity(Double.NaN, 0.0, 0.2));
-    }
-
-    @Test
-    void foamStartsAtTheHullsWidthAndSpreadsWithAge() {
-        assertEquals(1.4, Wake.foamWidth(1.4, 2.5, 1.0, 0, 80), 1e-9);
-        assertEquals(1.4 * 1.75, Wake.foamWidth(1.4, 2.5, 1.0, 40, 80), 1e-9);
-        assertEquals(1.4 * 2.5, Wake.foamWidth(1.4, 2.5, 1.0, 80, 80), 1e-9);
-        assertEquals(1.4 * 2.5, Wake.foamWidth(1.4, 2.5, 1.0, 800, 80), 1e-9);
-    }
-
-    @Test
-    void foamWidthScalesWithTheSquareRootOfIntensitySoASlowBoatStillLeavesARibbon() {
-        assertEquals(1.4 * 0.5, Wake.foamWidth(1.4, 2.5, 0.25, 0, 80), 1e-9);
-        assertEquals(0.0, Wake.foamWidth(1.4, 2.5, 0.0, 0, 80), 1e-9);
-        assertThrows(IllegalArgumentException.class, () -> Wake.foamWidth(0.0, 2.5, 1.0, 0, 80));
-        assertThrows(IllegalArgumentException.class, () -> Wake.foamWidth(1.4, 0.5, 1.0, 0, 80));
-        assertThrows(IllegalArgumentException.class, () -> Wake.foamWidth(1.4, 2.5, 1.5, 0, 80));
-        assertThrows(IllegalArgumentException.class, () -> Wake.foamWidth(1.4, 2.5, 1.0, -1, 80));
     }
 
     @Test

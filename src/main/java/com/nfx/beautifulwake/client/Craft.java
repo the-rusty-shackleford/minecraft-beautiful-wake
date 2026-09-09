@@ -18,7 +18,7 @@
 package com.nfx.beautifulwake.client;
 
 import com.nfx.beautifulwake.WakeConfig;
-import com.nfx.beautifulwake.domain.WakeGeometry.Params;
+import com.nfx.beautifulwake.domain.WakeParams;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import net.minecraft.core.BlockPos;
@@ -47,8 +47,8 @@ public final class Craft {
     /** The two kinds of wake-maker. */
     public enum Kind { WATERCRAFT, SWIMMER }
 
-    /** How far above the water surface the foam sits, against z-fighting with the water's own face. */
-    private static final double LIFT = 0.015;
+    /** How far above the water surface the wake's still level sits, against z-fighting with the water's own face. */
+    private static final double LIFT = 0.02;
 
     /** effects: returns what kind of wake-maker {@code entity} is, if any */
     public static Optional<Kind> kindOf(Entity entity) {
@@ -71,19 +71,23 @@ public final class Craft {
     /** The same for a wader. */
     private static final double SWIMMER_FLOOR = 0.5;
 
+    /** A swimmer's wake stands this much lower than a hull's. */
+    private static final double SWIMMER_RELIEF = 0.55;
+
     /**
      * effects: returns the shape of {@code kind}'s wake for a body
-     * {@code width} wide: a hull's at full strength with thick arms, a
-     * swimmer's from a body and a half's width, quicker to reach full at a
-     * swimmer's speeds, at the configured fraction of a boat's, with thin arms
+     * {@code width} wide: a hull's at full strength and relief, a swimmer's
+     * from a body and a half's width, quicker to reach full at a swimmer's
+     * speeds, at the configured fraction of a boat's, standing lower
      */
-    public static Params params(Kind kind, double width) {
+    public static WakeParams params(Kind kind, double width) {
+        double relief = WakeConfig.RELIEF.get();
         return switch (kind) {
-            case WATERCRAFT -> new Params(Math.max(0.6, width), WakeConfig.SPREAD.get(), WakeConfig.lifeTicks(),
-                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, 0.9, LIFT, 1.0, HULL_FLOOR);
-            case SWIMMER -> new Params(Math.max(0.5, width * 1.5), WakeConfig.SPREAD.get(), WakeConfig.lifeTicks(),
-                    WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, 0.35, LIFT,
-                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR);
+            case WATERCRAFT -> new WakeParams(Math.max(0.6, width), WakeConfig.lifeTicks(),
+                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief);
+            case SWIMMER -> new WakeParams(Math.max(0.5, width * 1.5), WakeConfig.lifeTicks(),
+                    WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, LIFT,
+                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF);
         };
     }
 

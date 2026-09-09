@@ -10,8 +10,10 @@ authors="Rusty Shackleford"
 # A client-only mod: a server without it is no mismatch.
 displayTest="IGNORE_ALL_VERSION"
 description='''
-The water behind a boat: a foam trail that spreads and fades, the V of a
-real wake, and spray off the bow -- for every boat, at any speed worth one.
+The water behind a boat, standing up out of the water: a bow wave, a trough,
+chevron ridges in the V, a pale sheet edged in white, a bubbling churn and a
+burst of bubbles off the bow -- for every boat, at any speed worth one, and a
+touch of it behind anyone wading.
 '''
 
 [[dependencies.${mod_id}]]

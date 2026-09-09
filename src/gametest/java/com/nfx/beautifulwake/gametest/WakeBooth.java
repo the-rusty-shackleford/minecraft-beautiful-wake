@@ -23,6 +23,7 @@ import com.nfx.beautifulwake.client.WakeRenderer;
 import com.nfx.beautifulwake.client.WakeTracker;
 import com.nfx.beautifulwake.domain.Ripple;
 import com.nfx.beautifulwake.domain.Wake;
+import com.nfx.beautifulwake.domain.WakeMesh;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -247,11 +248,28 @@ public final class WakeBooth {
         })));
         s.add(new Step(HOLD + 78, () -> shoot(mc, "booth-wake-paddle")));
         s.add(new Step(HOLD + 170, () -> onServer(mc, p -> lookDown(p, boatX - 4, boatZ))));
-        s.add(new Step(HOLD + 176, () -> verdict("at speed the wake is at full strength and drawn", () -> {
+        s.add(new Step(HOLD + 176, () -> verdict("at speed the wake is at full strength, drawn in relief, and the bow throws bubbles", () -> {
             WakeTracker.Tracked t = WakeTracker.tracked(boat.getId()).orElseThrow();
             double intensity = Wake.intensity(t.trail().speed(), 0.075, 0.35);
-            return intensity > 0.99 && WakeRenderer.lastQuadCount() > 40
-                    ? null : "speed " + t.trail().speed() + " quads " + WakeRenderer.lastQuadCount();
+            if (intensity < 0.99 || WakeRenderer.lastQuadCount() < 400 || WakeRenderer.lastBubbleCount() == 0) {
+                return "speed " + t.trail().speed() + " quads " + WakeRenderer.lastQuadCount() + " bubbles " + WakeRenderer.lastBubbleCount();
+            }
+            // The surface stands up: a bow wave over a tenth of a block, somewhere a slope.
+            var params = Craft.params(t.kind(), t.width());
+            var table = WakeTracker.table(params);
+            if (table.isEmpty()) {
+                return "the boat's table is still building";
+            }
+            WakeMesh.Mesh mesh = WakeMesh.build(t.trail().samples(), mc.level.getGameTime(), params, 25, table.get());
+            double top = Double.NEGATIVE_INFINITY;
+            double lean = 0.0;
+            for (List<WakeMesh.Vertex> row : mesh.rows()) {
+                for (WakeMesh.Vertex v : row) {
+                    top = Math.max(top, v.y() - SURFACE);
+                    lean = Math.max(lean, 1.0 - v.ny());
+                }
+            }
+            return top > 0.1 && lean > 0.05 ? null : "top " + top + " above the water, most lean " + lean;
         })));
         s.add(new Step(HOLD + 178, () -> shoot(mc, "booth-wake-speed-top")));
         s.add(new Step(HOLD + 180, () -> onServer(mc, WakeBooth::lookFromAstern)));
@@ -352,9 +370,10 @@ public final class WakeBooth {
                     ? null : "riding " + (mc.player.getVehicle() != null) + " speed " + speed;
         })));
         s.add(new Step(act + 98, () -> shoot(mc, "booth-drive-slow")));
-        s.add(new Step(act + 150, () -> verdict("flat out the boat is at speed with the whole wake", () -> {
+        s.add(new Step(act + 150, () -> verdict("flat out the boat is at speed with the whole wake and a bow full of bubbles", () -> {
             double speed = WakeTracker.tracked(boat.getId()).map(t -> t.trail().speed()).orElse(-1.0);
-            return speed > 0.3 && WakeRenderer.lastQuadCount() > 40 ? null : "speed " + speed + " quads " + WakeRenderer.lastQuadCount();
+            return speed > 0.3 && WakeRenderer.lastQuadCount() > 400 && WakeRenderer.lastBubbleCount() > 10
+                    ? null : "speed " + speed + " quads " + WakeRenderer.lastQuadCount() + " bubbles " + WakeRenderer.lastBubbleCount();
         })));
         s.add(new Step(act + 152, () -> shoot(mc, "booth-drive-fast")));
         s.add(new Step(act + 156, () -> KeyMapping.set(mc.options.keyLeft.getKey(), true)));

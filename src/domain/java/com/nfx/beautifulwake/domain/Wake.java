@@ -74,25 +74,6 @@ public final class Wake {
     }
 
     /**
-     * effects: returns how wide the foam behind the hull is, {@code age}
-     * ticks after the hull passed: the hull's width at the stern, spreading
-     * to {@code spread} times that by the end of the wake's life -- turbulent
-     * water widens as it decays -- and all of it scaled by the intensity's
-     * square root, so a slow boat's ribbon is narrow but not vanishing<br>
-     * throws: {@link IllegalArgumentException} if {@code hullWidth <= 0},
-     * {@code spread < 1}, {@code lifeTicks < 1}, {@code age < 0} or
-     * {@code intensity} outside {@code [0, 1]}
-     */
-    public static double foamWidth(double hullWidth, double spread, double intensity, long age, int lifeTicks) {
-        if (!(hullWidth > 0.0) || !(spread >= 1.0) || lifeTicks < 1 || age < 0 || !(intensity >= 0.0 && intensity <= 1.0)) {
-            throw new IllegalArgumentException("bad foamWidth arguments: hull " + hullWidth + " spread " + spread
-                    + " intensity " + intensity + " age " + age + " life " + lifeTicks);
-        }
-        double along = Math.min(1.0, (double) age / lifeTicks);
-        return hullWidth * (1.0 + (spread - 1.0) * along) * Math.sqrt(intensity);
-    }
-
-    /**
      * effects: returns how opaque foam is {@code age} ticks after the hull
      * passed, for a wake of {@code intensity}: the intensity at the stern,
      * falling to nothing at the end of the wake's life along a curve that
