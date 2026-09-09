@@ -113,6 +113,9 @@ public final class WakeRenderer {
     /** Within this many blocks of the camera a bubble starts to shrink and fade, and at {@link #BUBBLE_GONE} it is gone. */
     private static final double BUBBLE_NEAR = 1.8;
     private static final double BUBBLE_GONE = 0.5;
+    /** In first person, the viewer's own sheet, lines and foam start to fade this many blocks from the eye, and at {@link #EYE_GONE} are gone. */
+    private static final double EYE_NEAR = 3.0;
+    private static final double EYE_GONE = 1.2;
     private static final double RING_LIFT = 0.02;
     /** The foam sits on the ring. */
     private static final double FLECK_LIFT = 0.025;
@@ -200,9 +203,17 @@ public final class WakeRenderer {
 
         List<WakeMesh.Mesh> meshes = new ArrayList<>();
         List<WakeTracker.Tracked> crafts = new ArrayList<>();
+        List<Boolean> ownInFirstPerson = new ArrayList<>();
+        Entity viewer = camera.getEntity();
         for (Map.Entry<Integer, WakeTracker.Tracked> entry : WakeTracker.all().entrySet()) {
             WakeTracker.Tracked tracked = entry.getValue();
-            List<Sample> samples = headed(tracked, level.getEntity(entry.getKey()), partial, now);
+            Entity entity = level.getEntity(entry.getKey());
+            // The viewer's own wake in first person: the eye is at the water
+            // line, and the sheet, lines and foam right in front of it would
+            // fill the view; they fade out near the eye instead.
+            ownInFirstPerson.add(entity != null && !camera.isDetached()
+                    && (entity == viewer || (viewer != null && viewer.getVehicle() == entity)));
+            List<Sample> samples = headed(tracked, entity, partial, now);
             WakeParams p = Craft.params(tracked.kind(), tracked.width());
             Optional<WakeTable> table = WakeTracker.table(p);
             meshes.add(samples.size() < 2 || table.isEmpty() ? new WakeMesh.Mesh(List.of(), COLUMNS)
@@ -212,22 +223,22 @@ public final class WakeRenderer {
 
         if (skin) {
             VertexConsumer consumer = buffers.getBuffer(SKIN);
-            for (WakeMesh.Mesh mesh : meshes) {
-                quads += drawMesh(consumer, pose, level, mesh, Pass.SKIN);
+            for (int i = 0; i < meshes.size(); i++) {
+                quads += drawMesh(consumer, pose, level, meshes.get(i), Pass.SKIN, ownInFirstPerson.get(i));
             }
             buffers.endBatch(SKIN);
         }
         if (lines) {
             VertexConsumer consumer = buffers.getBuffer(LINES);
-            for (WakeMesh.Mesh mesh : meshes) {
-                quads += drawMesh(consumer, pose, level, mesh, Pass.LINES);
+            for (int i = 0; i < meshes.size(); i++) {
+                quads += drawMesh(consumer, pose, level, meshes.get(i), Pass.LINES, ownInFirstPerson.get(i));
             }
             buffers.endBatch(LINES);
         }
         if (foam) {
             VertexConsumer consumer = buffers.getBuffer(FOAM[frame]);
-            for (WakeMesh.Mesh mesh : meshes) {
-                quads += drawMesh(consumer, pose, level, mesh, Pass.FOAM);
+            for (int i = 0; i < meshes.size(); i++) {
+                quads += drawMesh(consumer, pose, level, meshes.get(i), Pass.FOAM, ownInFirstPerson.get(i));
             }
             buffers.endBatch(FOAM[frame]);
 
@@ -273,7 +284,7 @@ public final class WakeRenderer {
      * alpha, its own normal, and the light on the water at its row. Every
      * quad is wound counter-clockwise seen from above.
      */
-    private static int drawMesh(VertexConsumer consumer, PoseStack pose, ClientLevel level, WakeMesh.Mesh mesh, Pass pass) {
+    private static int drawMesh(VertexConsumer consumer, PoseStack pose, ClientLevel level, WakeMesh.Mesh mesh, Pass pass, boolean fadeNearEye) {
         List<List<WakeMesh.Vertex>> rows = mesh.rows();
         if (rows.size() < 2) {
             return 0;
@@ -301,10 +312,10 @@ public final class WakeRenderer {
                 // front-facing from above: a shader pack that flips the
                 // normal of a back face (Complementary does) would otherwise
                 // light the whole wake from below and draw it dark.
-                vertex(consumer, last, a, pass, light[r]);
-                vertex(consumer, last, d, pass, light[r + 1]);
-                vertex(consumer, last, c, pass, light[r + 1]);
-                vertex(consumer, last, b, pass, light[r]);
+                vertex(consumer, last, a, pass, light[r], fadeNearEye);
+                vertex(consumer, last, d, pass, light[r + 1], fadeNearEye);
+                vertex(consumer, last, c, pass, light[r + 1], fadeNearEye);
+                vertex(consumer, last, b, pass, light[r], fadeNearEye);
                 drawn++;
             }
         }
@@ -320,7 +331,7 @@ public final class WakeRenderer {
         return Math.round(a * 255.0f);
     }
 
-    private static void vertex(VertexConsumer consumer, PoseStack.Pose pose, WakeMesh.Vertex v, Pass pass, int light) {
+    private static void vertex(VertexConsumer consumer, PoseStack.Pose pose, WakeMesh.Vertex v, Pass pass, int light, boolean fadeNearEye) {
         float u;
         float tex;
         if (pass == Pass.FOAM) {
@@ -331,9 +342,17 @@ public final class WakeRenderer {
             tex = v.chevron();
         }
         int tone = pass == Pass.SKIN ? Math.min(WHITE, Math.round(WHITE * v.shade())) : WHITE;
-        consumer.addVertex(pose, (float) (v.x() - origin.x), (float) (v.y() - origin.y), (float) (v.z() - origin.z))
+        int alpha = alpha(v, pass);
+        double dx = v.x() - origin.x;
+        double dy = v.y() - origin.y;
+        double dz = v.z() - origin.z;
+        if (fadeNearEye && alpha > 0) {
+            double near = Math.min(1.0, Math.max(0.0, (Math.sqrt(dx * dx + dy * dy + dz * dz) - EYE_GONE) / (EYE_NEAR - EYE_GONE)));
+            alpha = (int) Math.round(alpha * near);
+        }
+        consumer.addVertex(pose, (float) dx, (float) dy, (float) dz)
                 .setUv(u, tex)
-                .setColor(tone, tone, tone, alpha(v, pass))
+                .setColor(tone, tone, tone, alpha)
                 .setLight(light);
     }
 

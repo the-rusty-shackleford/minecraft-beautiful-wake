@@ -84,4 +84,6 @@ found sunk by Complementary's alpha push (D-0007); the trail on
 start-of-tick positions and a clock of its own; no thinning; fractional
 ages; soft clamp and smoothstep ramps; the swimmer's wash and boosted
 foam; the smoothness test. Rusty, of the shader booth run: "Thats it.
-Thats the win". Open: a ring that is not a perfect circle.
+Thats the win". 2.3.1: no edge line ahead of the hull (white shards at the bow at speed),
+the viewer's own wake faded near the eye in first person. Open: a ring
+that is not a perfect circle.

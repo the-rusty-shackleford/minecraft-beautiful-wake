@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
  * above the water, ridges and dips behind, nothing at rest. Normals: unit,
  * upright on flat water, leaning on a slope. Skin and foam: inside the V,
  * none outside, fading with age. Mappings: the edge coordinate zero on the
- * V's edge and clamped inside, the chevron lines hidden before the
+ * V's edge and clamped inside and absent ahead of the hull, the chevron lines hidden before the
  * chevrons start and the phase continuous and pinned to the water, the
  * foam pinned to the tick. A curved track bends the
  * grid; a tight turn holds the inside short. Shade: flat, toward, away,
@@ -178,6 +178,17 @@ final class WakeMeshTest {
             }
         }
         assertTrue(crosses);
+    }
+
+    @Test
+    void thereIsNoEdgeLineAheadOfTheHull() {
+        WakeMesh.Mesh mesh = WakeMesh.build(run(0.4, 40), 40, P, COLUMNS, T);
+        for (int r = 0; r < 5; r++) {
+            for (WakeMesh.Vertex v : mesh.rows().get(r)) {
+                assertEquals((float) WakeMesh.EDGE_INSIDE, v.edge(), "a row ahead of the hull is all inside");
+            }
+        }
+        assertTrue(mesh.rows().get(20).get(0).edge() > 0.0f, "behind it the outer column is outside the edge");
     }
 
     @Test

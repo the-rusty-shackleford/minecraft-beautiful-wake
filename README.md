@@ -78,7 +78,13 @@ foam, pinned to the water so the churn stays where the hull churned it.
 The churn has two texture frames with its bubbles nudged differently,
 shown turn and turn about every four ticks, so it boils at no cost beyond
 picking a texture; the edge line and the chevron lines are still, since a
-straight line that steps between frames reads as a vibration. The bow's bubbles are a small simulation --
+straight line that steps between frames reads as a vibration. There is no edge line ahead of the hull's centre, where the outline narrows
+to its nose: every vertex of such a row is near the edge, and a line drawn
+there covered whole quads as a fan of white shards at the bow. In first
+person the viewer's own sheet, lines, foam and bubbles fade out within a
+few blocks of the eye, so a swimmer's wash does not fill their view; other
+players' wakes, and every wake in third person, are drawn in full. The
+bow's bubbles are a small simulation --
 thrown up and outward, falling under gravity, settling and popping --
 drawn as billboards facing the camera, the one part of the wake that is
 not a surface. A splash's foam is three frames of flecks over its ring,

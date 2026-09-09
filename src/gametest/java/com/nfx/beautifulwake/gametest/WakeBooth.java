@@ -463,7 +463,11 @@ public final class WakeBooth {
                     ? null : "kind " + tracked.get().kind() + " quads " + WakeRenderer.lastQuadCount();
         })));
         s.add(new Step(act + 302, () -> shoot(mc, "booth-swim")));
+        // The same from the swimmer's own eye: the wake must not fill the view.
+        s.add(new Step(act + 303, () -> mc.options.setCameraType(CameraType.FIRST_PERSON)));
+        s.add(new Step(act + 305, () -> shoot(mc, "booth-swim-first-person")));
         s.add(new Step(act + 306, () -> {
+            mc.options.setCameraType(CameraType.THIRD_PERSON_BACK);
             KeyMapping.set(mc.options.keyUp.getKey(), false);
             onServer(mc, p -> {
                 p.getAbilities().flying = true;

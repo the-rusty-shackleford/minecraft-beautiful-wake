@@ -233,7 +233,12 @@ public final class WakeMesh {
             double len = Math.sqrt(nx * nx + 1.0 + nz * nz);
             double edgeFade = WakeField.edgeFade(hull, p.nose(), d, s);
             double skin = edgeFade * ageFade * intensity;
-            float edge = (float) Math.max(EDGE_INSIDE, Math.abs(s) - WakeField.halfWidth(hull, p.nose(), d));
+            // No edge line ahead of the hull's centre: where the outline narrows
+            // to its nose every vertex of a row is near the edge, and the line
+            // texture then covers whole quads, a fan of white shards at the
+            // bow. The sheet still fades out at the outline through its alpha.
+            float edge = d < 0.0 ? (float) EDGE_INSIDE
+                    : (float) Math.max(EDGE_INSIDE, Math.abs(s) - WakeField.halfWidth(hull, p.nose(), d));
             float chevron = (float) phase;
             double lines = skin * chevronStart * Math.exp(-Math.max(0.0, d) / WakeField.CHEVRON_DECAY);
             row.add(new Vertex(cx + px * s, surfaceY + p.lift() + h, cz + pz * s, nx / len, 1.0 / len, nz / len,
