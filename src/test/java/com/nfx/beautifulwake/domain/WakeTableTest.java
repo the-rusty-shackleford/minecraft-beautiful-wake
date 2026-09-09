@@ -121,7 +121,8 @@ final class WakeTableTest {
         assertTrue(T.fits(new WakeParams(HULL, 90, 0.075, 0.35, 20.0, 0.02)));
         assertTrue(!T.fits(new WakeParams(HULL, 90, 0.075, 0.35, 20.0, 0.02, 1.0, 0.0, 1.0, 1.0, WakeField.SWIMMER_NOSE, 0.0, 1.0)));
         assertThrows(IllegalArgumentException.class, () -> WakeTable.of(0.0, NOSE));
-        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(HULL, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(HULL, -0.1));
+        assertEquals(0.0, WakeTable.of(HULL, WakeField.BOAT_NOSE).nose(), "a boat's table has no nose");
         assertThrows(IllegalArgumentException.class, () -> WakeTable.of(Double.POSITIVE_INFINITY, NOSE));
     }
 }

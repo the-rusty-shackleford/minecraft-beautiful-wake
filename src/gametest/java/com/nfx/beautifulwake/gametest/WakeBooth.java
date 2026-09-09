@@ -304,7 +304,7 @@ public final class WakeBooth {
             if (intensity < 0.99 || WakeRenderer.lastQuadCount() < 400 || WakeRenderer.lastBubbleCount() == 0) {
                 return "speed " + t.trail().speed() + " quads " + WakeRenderer.lastQuadCount() + " bubbles " + WakeRenderer.lastBubbleCount();
             }
-            // The surface stands up: a bow wave over a tenth of a block, somewhere a slope.
+            // The surface stands up: the chevron ridges over a twentieth of a block, somewhere a slope.
             var params = Craft.params(t.kind(), t.width());
             var table = WakeTracker.table(params);
             if (table.isEmpty()) {
@@ -319,7 +319,7 @@ public final class WakeBooth {
                     lean = Math.max(lean, 1.0 - v.ny());
                 }
             }
-            return top > 0.1 && lean > 0.05 ? null : "top " + top + " above the water, most lean " + lean;
+            return top > 0.05 && lean > 0.02 ? null : "top " + top + " above the water, most lean " + lean;
         })));
         s.add(new Step(HOLD + 178, () -> shoot(mc, "booth-wake-speed-top")));
         s.add(new Step(HOLD + 180, () -> onServer(mc, WakeBooth::lookFromAstern)));

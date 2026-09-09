@@ -94,8 +94,8 @@ public final class Craft {
 
     /**
      * effects: returns the shape of {@code kind}'s wake for a body
-     * {@code width} wide: a hull's at full strength and relief with a
-     * boat's nose, a swimmer's from twice the body's width, quicker to
+     * {@code width} wide: a hull's at full strength and relief with nothing
+     * drawn ahead of its centre, a swimmer's from twice the body's width, quicker to
      * reach full at a swimmer's speeds, at the configured fraction of a
      * boat's, standing lower, with a nose short enough to stay inside the
      * body
@@ -105,7 +105,7 @@ public final class Craft {
         double size = WakeConfig.SCALE.get();
         return switch (kind) {
             case WATERCRAFT -> new WakeParams(Math.max(0.6, width), WakeConfig.lifeTicks(),
-                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief, size, WakeField.HULL_NOSE, 0.0, 1.0);
+                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief, size, WakeField.BOAT_NOSE, 0.0, 1.0);
             case SWIMMER -> new WakeParams(Math.max(0.6, width * SWIMMER_HULL), WakeConfig.lifeTicks(),
                     WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, LIFT,
                     WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF, size, WakeField.SWIMMER_NOSE, 1.0, SWIMMER_FOAM);

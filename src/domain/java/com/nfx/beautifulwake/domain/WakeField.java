@@ -69,8 +69,10 @@ public final class WakeField {
     private static final double CHEVRON_COS = Math.cos(CHEVRON_ANGLE);
     private static final double CHEVRON_SIN = Math.sin(CHEVRON_ANGLE);
 
-    /** How far ahead of a hull's centre its outline's nose reaches, in hull widths: under the bow, where the boat hides it. */
+    /** A nose for a hull without a model over it -- the tests' hull -- in hull widths. A boat's is {@link #BOAT_NOSE}. */
     public static final double HULL_NOSE = 0.45;
+    /** A boat's nose: none. The boat's model covers everything ahead of its centre, and rows drawn there showed as shards at the bow. */
+    public static final double BOAT_NOSE = 0.0;
     /** The same for a swimmer: inside the body, so nothing shows ahead of a wader. */
     public static final double SWIMMER_NOSE = 0.35;
 
@@ -81,14 +83,19 @@ public final class WakeField {
      * rounding off in a half-ellipse to nothing {@code nose} hulls ahead --
      * the outline hugs the hull and rounds off at the bow like the water
      * round a wader's legs, so nothing squared-off or pointed shows round
-     * the body<br>
-     * throws: {@link IllegalArgumentException} if {@code nose <= 0}
+     * the body. A nose of zero is nothing ahead of the centre at all: a
+     * boat's model covers that region, and rows drawn there showed as a fan
+     * of shards at the bow.<br>
+     * throws: {@link IllegalArgumentException} if {@code nose < 0}
      */
     public static double halfWidth(double hull, double nose, double d) {
-        if (!(nose > 0.0)) {
-            throw new IllegalArgumentException("nose must be > 0, was " + nose);
+        if (!(nose >= 0.0)) {
+            throw new IllegalArgumentException("nose must be >= 0, was " + nose);
         }
         if (d < 0.0) {
+            if (nose == 0.0) {
+                return 0.0;
+            }
             double along = -d / (hull * nose);
             return along >= 1.0 ? 0.0 : hull * 0.65 * Math.sqrt(1.0 - along * along);
         }
@@ -100,7 +107,7 @@ public final class WakeField {
      * 0 over {@link #EDGE} blocks outside it, and 0 at its nose's tip and ahead
      */
     public static double edgeFade(double hull, double nose, double d, double s) {
-        if (d <= -hull * nose) {
+        if (d < 0.0 ? d <= -hull * nose : false) {
             return 0.0;
         }
         double outside = Math.abs(s) - halfWidth(hull, nose, d);

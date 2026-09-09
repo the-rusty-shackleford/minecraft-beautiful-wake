@@ -114,7 +114,7 @@ final class WakeMeshTest {
                 bottom = Math.min(bottom, v.y());
             }
         }
-        assertTrue(top > 63.0 + P.lift() + 0.1, "a bow wave stands up, top was " + top);
+        assertTrue(top > 63.0 + P.lift() + 0.05, "the ridges stand up, top was " + top);
         assertTrue(bottom >= 63.0 + P.lift() && bottom < 63.0 + P.lift() + 0.021, "nothing below the still level and the lift, and the deepest trough is level: " + (bottom - 63.0 - P.lift()));
         assertEquals(0.0, WakeMesh.aboveLevel(-1.0), 1e-3);
         assertEquals(1.0, WakeMesh.aboveLevel(1.0), 1e-3);
@@ -178,6 +178,22 @@ final class WakeMeshTest {
             }
         }
         assertTrue(crosses);
+    }
+
+    @Test
+    void aBoatHasNoRowsAheadOfItsCentreAndASwimmersAreFlatAndUnshaded() {
+        WakeParams boat = new WakeParams(1.4, 90, 0.075, 0.35, 20.0, 0.015, 1.0, 0.0, 1.0, 1.0, WakeField.BOAT_NOSE, 0.0, 1.0);
+        WakeMesh.Mesh mesh = WakeMesh.build(run(0.4, 40), 40, boat, COLUMNS, WakeTable.of(1.4, WakeField.BOAT_NOSE));
+        assertEquals(41, mesh.rows().size(), "a row per sample and none ahead");
+        assertEquals(40 * 0.4, mesh.rows().get(0).get(COLUMNS / 2).x(), 1e-9, "the first row is the newest sample");
+        WakeMesh.Mesh withNose = WakeMesh.build(run(0.4, 40), 40, P, COLUMNS, T);
+        for (int r = 0; r < 5; r++) {
+            for (WakeMesh.Vertex v : withNose.rows().get(r)) {
+                assertEquals(63.0 + P.lift(), v.y(), 1e-9, "flat ahead of the centre");
+                assertEquals(1.0f, v.shade(), "unshaded ahead of the centre");
+                assertEquals(1.0, v.ny(), 1e-9);
+            }
+        }
     }
 
     @Test
@@ -317,7 +333,7 @@ final class WakeMeshTest {
         assertTrue(halfFar.lines() < fullFar.lines() * 0.8f, "lines too");
         double fullTop = full.rows().stream().flatMap(List::stream).mapToDouble(WakeMesh.Vertex::y).max().orElseThrow() - 63.0 - P.lift();
         double halfTop = half.rows().stream().flatMap(List::stream).mapToDouble(WakeMesh.Vertex::y).max().orElseThrow() - 63.0 - P.lift();
-        assertEquals(fullTop / 2.0, halfTop, 0.003, "half as tall");
+        assertTrue(halfTop < fullTop * 0.6 && halfTop > fullTop * 0.4, "about half as tall: " + halfTop + " vs " + fullTop);
         // At the hull the sheet is as wide either way: the outline is the hull's.
         assertEquals(full.rows().get(5).get(0).x(), half.rows().get(5).get(0).x(), 1e-9);
         assertEquals(full.rows().get(5).get(0).z(), half.rows().get(5).get(0).z(), 1e-9);

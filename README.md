@@ -78,9 +78,11 @@ foam, pinned to the water so the churn stays where the hull churned it.
 The churn has two texture frames with its bubbles nudged differently,
 shown turn and turn about every four ticks, so it boils at no cost beyond
 picking a texture; the edge line and the chevron lines are still, since a
-straight line that steps between frames reads as a vibration. There is no edge line ahead of the hull's centre, where the outline narrows
-to its nose: every vertex of such a row is near the edge, and a line drawn
-there covered whole quads as a fan of white shards at the bow. In first
+straight line that steps between frames reads as a vibration. A boat's wake starts at the hull's centre and nothing is drawn ahead of it:
+the boat's model covers that region, and rows drawn there -- the raised bow
+wave with its shading, the shoulder foam -- showed as a fan of shards at the
+bow at speed. A swimmer keeps a short rounded nose round the body, flat and
+unshaded, for the wash. In first
 person the viewer's own sheet, lines, foam and bubbles fade out within a
 few blocks of the eye, so a swimmer's wash does not fill their view; other
 players' wakes, and every wake in third person, are drawn in full. The

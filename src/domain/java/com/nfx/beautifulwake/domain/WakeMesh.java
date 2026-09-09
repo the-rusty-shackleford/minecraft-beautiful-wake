@@ -152,9 +152,11 @@ public final class WakeMesh {
         double headIntensity = intensityAt(apart, n - 1, p);
         double hull = p.hullWidth();
         double noseLength = hull * p.nose();
-        for (double ahead : AHEAD) {
-            rows.add(row(head.x() + heading[0] * ahead * noseLength, head.surfaceY(), head.z() + heading[1] * ahead * noseLength,
-                    heading, -ahead * noseLength, head.arc() + ahead * noseLength, Math.min(now, (double) head.tick()), headIntensity, 0.0, p, columns, 0.0, table));
+        if (noseLength > 0.0) {
+            for (double ahead : AHEAD) {
+                rows.add(row(head.x() + heading[0] * ahead * noseLength, head.surfaceY(), head.z() + heading[1] * ahead * noseLength,
+                        heading, -ahead * noseLength, head.arc() + ahead * noseLength, Math.min(now, (double) head.tick()), headIntensity, 0.0, p, columns, 0.0, table));
+            }
         }
         for (int i = n - 1; i >= 0; i--) {
             Sample s = apart.get(i);
@@ -218,15 +220,18 @@ public final class WakeMesh {
             // through it flickered along the cut. The clamp is soft, so a
             // vertex leaving the level starts up gently rather than with a
             // crease that would run along the sheet as the hull moves.
-            double h = aboveLevel(scale * (table.base(d, s) + envelope * cos));
+            // Ahead of the hull's centre the sheet is flat and unshaded: it lies
+            // under a body or a hull, and a raised, shaded nose showed as a fan
+            // of facets at the bow.
+            double h = d < 0.0 ? 0.0 : aboveLevel(scale * (table.base(d, s) + envelope * cos));
             double foam = Math.min(1.0, p.foamBoost() * Math.sqrt(intensity) * table.foam(d, s)) * ageFade;
             // The normal from the slope along and across the track; d runs
             // backward along the track, so a rise with d falls along the
             // heading. A step back along the track is a step down the arc,
             // so the phase changes with d as it did when measured from the hull.
-            double hd = scale * (table.baseD(d, s) + table.envelopeD(d, s) * cos
+            double hd = d < 0.0 ? 0.0 : scale * (table.baseD(d, s) + table.envelopeD(d, s) * cos
                     - envelope * 2.0 * Math.PI * sin * WakeField.chevronPhasePerBlockBack());
-            double hs = scale * (table.baseS(d, s) + table.envelopeS(d, s) * cos
+            double hs = d < 0.0 ? 0.0 : scale * (table.baseS(d, s) + table.envelopeS(d, s) * cos
                     - envelope * 2.0 * Math.PI * sin * Math.signum(s) * WakeField.chevronPhasePerBlockOut());
             double nx = hd * heading[0] - hs * px;
             double nz = hd * heading[1] - hs * pz;

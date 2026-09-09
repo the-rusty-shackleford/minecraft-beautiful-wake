@@ -56,7 +56,12 @@ final class WakeFieldTest {
         // A swimmer's nose is shorter, so nothing shows ahead of a wader's body.
         assertEquals(0.0, WakeField.halfWidth(0.9, WakeField.SWIMMER_NOSE, -0.9 * WakeField.SWIMMER_NOSE), 1e-9);
         assertTrue(0.9 * WakeField.SWIMMER_NOSE < 0.35, "inside a player's body");
-        assertThrows(IllegalArgumentException.class, () -> WakeField.halfWidth(HULL, 0.0, 1.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeField.halfWidth(HULL, -0.1, 1.0));
+        // A boat has no nose: nothing ahead of the centre, and the centre row itself is whole.
+        assertEquals(0.0, WakeField.halfWidth(HULL, WakeField.BOAT_NOSE, -0.01), 1e-9);
+        assertEquals(0.0, WakeField.edgeFade(HULL, WakeField.BOAT_NOSE, -0.01, 0.0), 1e-9);
+        assertEquals(1.0, WakeField.edgeFade(HULL, WakeField.BOAT_NOSE, 0.0, 0.0), 1e-9);
+        assertEquals(HULL * 0.65, WakeField.halfWidth(HULL, WakeField.BOAT_NOSE, 0.0), 1e-9);
     }
 
     @Test

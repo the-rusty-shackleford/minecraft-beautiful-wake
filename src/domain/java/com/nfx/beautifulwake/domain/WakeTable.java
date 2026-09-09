@@ -121,8 +121,8 @@ public final class WakeTable {
      * throws: {@link IllegalArgumentException} if {@code hull <= 0}, {@code nose <= 0} or {@code wash} is outside {@code [0, 1]}
      */
     public static WakeTable of(double hull, double nose, double wash) {
-        if (!(hull > 0.0) || Double.isInfinite(hull) || !(nose > 0.0) || Double.isInfinite(nose) || !(wash >= 0.0 && wash <= 1.0)) {
-            throw new IllegalArgumentException("hull and nose must be finite and > 0 and wash in [0, 1], were " + hull + ", " + nose + " and " + wash);
+        if (!(hull > 0.0) || Double.isInfinite(hull) || !(nose >= 0.0) || Double.isInfinite(nose) || !(wash >= 0.0 && wash <= 1.0)) {
+            throw new IllegalArgumentException("hull must be finite and > 0, nose finite and >= 0, wash in [0, 1]; were " + hull + ", " + nose + " and " + wash);
         }
         return new WakeTable(hull, nose, wash);
     }
