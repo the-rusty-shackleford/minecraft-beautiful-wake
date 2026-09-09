@@ -29,20 +29,24 @@ package com.nfx.beautifulwake.domain;
  * @param strength     a scale on the whole wake, {@code (0, 1]}: a swimmer's is a fraction of a hull's
  * @param floor        the intensity just above {@code minSpeed}, so the slowest wake is still one
  * @param relief       a scale on the wake's heights: 1 is a hull's, a swimmer's less
+ * @param size         the wake's overall size, {@code (0, 2]}: how far behind the hull the sheet and
+ *                     its lines reach before fading, and a scale on the heights and the bubbles;
+ *                     the V's angle and its width at the hull are the hull's whatever the size
+ * @param nose         how far ahead of the hull's centre the outline's rounded nose reaches, in hulls
  */
 public record WakeParams(double hullWidth, int lifeTicks, double minSpeed, double fullSpeed, double textureTicks,
-                         double lift, double strength, double floor, double relief) {
+                         double lift, double strength, double floor, double relief, double size, double nose) {
     public WakeParams {
         if (!(hullWidth > 0.0) || lifeTicks < 1 || !(minSpeed >= 0.0) || !(fullSpeed > minSpeed) || !(textureTicks > 0.0)
                 || !Double.isFinite(lift) || !(strength > 0.0 && strength <= 1.0) || !(floor >= 0.0 && floor <= 1.0)
-                || !(relief >= 0.0) || Double.isInfinite(relief)) {
+                || !(relief >= 0.0) || Double.isInfinite(relief) || !(size > 0.0 && size <= 2.0) || !(nose > 0.0 && nose <= 2.0)) {
             throw new IllegalArgumentException("bad wake params: " + hullWidth + " " + lifeTicks + " " + minSpeed + " "
-                    + fullSpeed + " " + textureTicks + " " + lift + " " + strength + " " + floor + " " + relief);
+                    + fullSpeed + " " + textureTicks + " " + lift + " " + strength + " " + floor + " " + relief + " " + size + " " + nose);
         }
     }
 
-    /** A hull's: full strength, no floor, full relief. */
+    /** A hull's: full strength, no floor, full relief, full size, a boat's nose. */
     public WakeParams(double hullWidth, int lifeTicks, double minSpeed, double fullSpeed, double textureTicks, double lift) {
-        this(hullWidth, lifeTicks, minSpeed, fullSpeed, textureTicks, lift, 1.0, 0.0, 1.0);
+        this(hullWidth, lifeTicks, minSpeed, fullSpeed, textureTicks, lift, 1.0, 0.0, 1.0, 1.0, WakeField.HULL_NOSE);
     }
 }

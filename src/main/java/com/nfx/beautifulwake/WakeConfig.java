@@ -38,6 +38,7 @@ public final class WakeConfig {
     public static final ModConfigSpec.DoubleValue FULL_SPEED;
     public static final ModConfigSpec.DoubleValue LIFE_SECONDS;
     public static final ModConfigSpec.DoubleValue RELIEF;
+    public static final ModConfigSpec.DoubleValue SCALE;
     public static final ModConfigSpec.IntValue SPRAY_MAX;
     public static final ModConfigSpec.DoubleValue MAX_DISTANCE;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> EXTRA_WATERCRAFT;
@@ -67,9 +68,12 @@ public final class WakeConfig {
                 .defineInRange("fullSpeed", 0.35, 0.01, 10.0);
         LIFE_SECONDS = b.comment("How long the wake lasts on the water, in seconds.")
                 .defineInRange("lifeSeconds", 4.5, 0.5, 30.0);
-        RELIEF = b.comment("How high the wake stands out of the water, 1 being a bow wave a sixth of a block tall;",
+        RELIEF = b.comment("How high the wake stands out of the water, 1 being a bow wave a fifth of a block tall;",
                         "0 lays it flat.")
                 .defineInRange("relief", 1.0, 0.0, 3.0);
+        SCALE = b.comment("The wake's overall size: how far behind the hull the sheet and its lines reach, how high",
+                        "it stands and how many bubbles the bow throws. 1 is a big wake for a rowboat; 0.7 fits one.")
+                .defineInRange("scale", 0.7, 0.1, 2.0);
         SPRAY_MAX = b.comment("Droplets thrown per tick at full speed; 0 for none.")
                 .defineInRange("sprayMax", 8, 0, 40);
         MAX_DISTANCE = b.comment("Craft farther than this from the camera, in blocks, get no wake.")

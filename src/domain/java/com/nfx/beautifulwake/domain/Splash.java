@@ -19,8 +19,8 @@ package com.nfx.beautifulwake.domain;
 
 /**
  * What the water does when something goes into it: a splash sized by what
- * fell and how fast, a ring that spreads and fades, droplets thrown up and
- * bubbles left under.
+ * fell and how fast, a ring that spreads and fades -- flecked with foam if
+ * the splash was heavy enough -- droplets thrown up and bubbles left under.
  *
  * <p>Mass is a plain number, about 1 for a player, less for an apple, more
  * for a stack of ingots; whoever knows the thing supplies it. Vertical
@@ -31,6 +31,10 @@ public final class Splash {
 
     /** The most a splash can be, so a falling anvil is big and not absurd. */
     public static final double MAX_STRENGTH = 3.0;
+    /** Below this strength a splash leaves no foam: an apple set on the water makes a ring and nothing white. */
+    public static final double FOAM_FROM = 0.8;
+    /** At this strength a splash leaves all the foam it can. */
+    public static final double FOAM_FULL = 2.2;
 
     /**
      * effects: returns the splash's strength: the mass times a factor that
@@ -72,6 +76,24 @@ public final class Splash {
         check(strength, age, lifeTicks);
         double along = Math.min(1.0, (double) age / lifeTicks);
         return Math.min(1.0, strength) * Math.pow(1.0 - along, 1.5);
+    }
+
+    /**
+     * effects: returns how opaque the foam on the ring is {@code age} ticks
+     * in: nothing for a splash under {@link #FOAM_FROM}, everything at
+     * {@link #FOAM_FULL} and above, straight between -- a gentle drop makes
+     * a ring and no foam, a heavy one a ring flecked with white -- and
+     * lingering a little longer than the ring itself as it fades<br>
+     * throws: as {@link #ringRadius}
+     */
+    public static double foamAlpha(double strength, long age, int lifeTicks) {
+        check(strength, age, lifeTicks);
+        if (strength <= FOAM_FROM) {
+            return 0.0;
+        }
+        double level = Math.min(1.0, (strength - FOAM_FROM) / (FOAM_FULL - FOAM_FROM));
+        double along = Math.min(1.0, (double) age / lifeTicks);
+        return level * Math.pow(1.0 - along, 1.2);
     }
 
     /** effects: returns how many droplets to throw up on entry, none for nothing, at most 24 */

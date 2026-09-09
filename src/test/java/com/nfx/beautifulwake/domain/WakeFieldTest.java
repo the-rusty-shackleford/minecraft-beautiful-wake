@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Partitions. The V: at the centre, behind it (opens at the Kelvin
- * angle), ahead (narrows to a point at the bow), inside, on the edge, in
- * the fade, beyond it, ahead of the point. Height: no
+ * angle), ahead (rounds off in a nose, a boat's and a swimmer's), inside,
+ * on the edge, in the fade, beyond it, at the nose's tip, a bad nose. Height: no
  * intensity or relief, the bow wave (a hump ahead of the bow, the tallest
  * thing), the trough (a dip right behind), chevrons (ridges at whole
  * phases, troughs at halves, port and starboard alike, none before their
@@ -40,45 +40,52 @@ import org.junit.jupiter.api.Test;
  */
 final class WakeFieldTest {
     private static final double HULL = 1.4;
+    private static final double NOSE = WakeField.HULL_NOSE;
 
     @Test
-    void theVIsAlittleOverHalfAHullAtTheCentreOpensAtTheKelvinAngleAndComesToAPointAtTheBow() {
-        assertEquals(HULL * 0.65, WakeField.halfWidth(HULL, 0.0), 1e-9);
-        double ten = WakeField.halfWidth(HULL, 10.0);
+    void theVIsAlittleOverHalfAHullAtTheCentreOpensAtTheKelvinAngleAndRoundsOffAheadInANose() {
+        assertEquals(HULL * 0.65, WakeField.halfWidth(HULL, NOSE, 0.0), 1e-9);
+        double ten = WakeField.halfWidth(HULL, NOSE, 10.0);
         assertEquals(Math.tan(Wake.KELVIN_HALF_ANGLE), (ten - HULL * 0.65) / 10.0, 1e-9);
-        assertEquals(HULL * 0.65 * 0.5, WakeField.halfWidth(HULL, -HULL * WakeField.POINT_AHEAD / 2.0), 1e-9, "half way to the point, half as wide");
-        assertEquals(0.0, WakeField.halfWidth(HULL, -HULL * WakeField.POINT_AHEAD), 1e-9, "a point");
-        assertEquals(0.0, WakeField.halfWidth(HULL, -HULL * 2.0), 1e-9, "nothing beyond it");
+        // A half-ellipse: still nearly full a little ahead, rounding off to nothing at the nose's tip.
+        assertEquals(HULL * 0.65 * Math.sqrt(0.75), WakeField.halfWidth(HULL, NOSE, -HULL * NOSE / 2.0), 1e-9, "half way to the tip, nearly as wide");
+        assertTrue(WakeField.halfWidth(HULL, NOSE, -HULL * NOSE * 0.95) < HULL * 0.65 * 0.35, "rounding off near the tip");
+        assertEquals(0.0, WakeField.halfWidth(HULL, NOSE, -HULL * NOSE), 1e-9, "the tip");
+        assertEquals(0.0, WakeField.halfWidth(HULL, NOSE, -HULL * 2.0), 1e-9, "nothing beyond it");
+        // A swimmer's nose is shorter, so nothing shows ahead of a wader's body.
+        assertEquals(0.0, WakeField.halfWidth(0.9, WakeField.SWIMMER_NOSE, -0.9 * WakeField.SWIMMER_NOSE), 1e-9);
+        assertTrue(0.9 * WakeField.SWIMMER_NOSE < 0.35, "inside a player's body");
+        assertThrows(IllegalArgumentException.class, () -> WakeField.halfWidth(HULL, 0.0, 1.0));
     }
 
     @Test
     void theEdgeIsWholeInsideFadesOverTheEdgeAndIsNothingBeyondOrFarAhead() {
-        double half = WakeField.halfWidth(HULL, 8.0);
-        assertEquals(1.0, WakeField.edgeFade(HULL, 8.0, 0.0), 1e-9);
-        assertEquals(1.0, WakeField.edgeFade(HULL, 8.0, -half), 1e-9, "the edge itself is inside");
-        double mid = WakeField.edgeFade(HULL, 8.0, half + WakeField.EDGE / 2.0);
+        double half = WakeField.halfWidth(HULL, NOSE, 8.0);
+        assertEquals(1.0, WakeField.edgeFade(HULL, NOSE, 8.0, 0.0), 1e-9);
+        assertEquals(1.0, WakeField.edgeFade(HULL, NOSE, 8.0, -half), 1e-9, "the edge itself is inside");
+        double mid = WakeField.edgeFade(HULL, NOSE, 8.0, half + WakeField.EDGE / 2.0);
         assertTrue(mid > 0.0 && mid < 1.0, "half way out is half way faded, was " + mid);
-        assertEquals(0.0, WakeField.edgeFade(HULL, 8.0, half + WakeField.EDGE), 1e-9);
-        assertEquals(0.0, WakeField.edgeFade(HULL, -HULL * 1.0, 0.0), 1e-9, "ahead of the point");
-        assertEquals(1.0, WakeField.edgeFade(HULL, -HULL * 0.4, 0.0), 1e-9, "on the track short of the point");
+        assertEquals(0.0, WakeField.edgeFade(HULL, NOSE, 8.0, half + WakeField.EDGE), 1e-9);
+        assertEquals(0.0, WakeField.edgeFade(HULL, NOSE, -HULL * NOSE, 0.0), 1e-9, "at the nose's tip");
+        assertEquals(1.0, WakeField.edgeFade(HULL, NOSE, -HULL * 0.4, 0.0), 1e-9, "on the track short of the tip");
     }
 
     @Test
     void nothingHappensWithoutIntensityOrRelief() {
-        assertEquals(0.0, WakeField.height(HULL, 0.0, 1.0, 1.0, 0.0));
-        assertEquals(0.0, WakeField.height(HULL, 1.0, 0.0, 1.0, 0.0));
-        assertEquals(0.0, WakeField.foam(HULL, 0.0, 1.0, 0.0));
+        assertEquals(0.0, WakeField.height(HULL, NOSE, 0.0, 1.0, 1.0, 0.0));
+        assertEquals(0.0, WakeField.height(HULL, NOSE, 1.0, 0.0, 1.0, 0.0));
+        assertEquals(0.0, WakeField.foam(HULL, NOSE, 0.0, 1.0, 0.0));
     }
 
     @Test
     void theBowWaveIsAHumpAtTheBowAndTheTallestThingInTheField() {
-        double bow = WakeField.height(HULL, 1.0, 1.0, -HULL * 0.35, 0.0);
+        double bow = WakeField.height(HULL, NOSE, 1.0, 1.0, -HULL * 0.3, 0.0);
         assertEquals(WakeField.BOW_HEIGHT, bow, 0.02, "the hump's crest is the bow height");
-        assertTrue(WakeField.height(HULL, 1.0, 1.0, -HULL * 0.35, HULL * 0.3) < bow, "lower to the side");
+        assertTrue(WakeField.height(HULL, NOSE, 1.0, 1.0, -HULL * 0.3, HULL * 0.3) < bow, "lower to the side");
         double tallest = 0.0;
         for (double d = -2.0; d < 30.0; d += 0.1) {
             for (double s = -12.0; s <= 12.0; s += 0.1) {
-                tallest = Math.max(tallest, WakeField.height(HULL, 1.0, 1.0, d, s));
+                tallest = Math.max(tallest, WakeField.height(HULL, NOSE, 1.0, 1.0, d, s));
             }
         }
         assertTrue(tallest <= bow + 1e-9 && tallest > bow * 0.95, "nothing taller than the bow: " + tallest + " vs " + bow);
@@ -86,7 +93,7 @@ final class WakeFieldTest {
 
     @Test
     void theSternLeavesATroughRightBehindTheHull() {
-        assertTrue(WakeField.height(HULL, 1.0, 1.0, HULL * 0.6, 0.0) < -0.03, "a dip behind the stern");
+        assertTrue(WakeField.height(HULL, NOSE, 1.0, 1.0, HULL * 0.6, 0.0) < -0.03, "a dip behind the stern");
     }
 
     @Test
@@ -96,12 +103,12 @@ final class WakeFieldTest {
         double whole = Math.floor(WakeField.chevronPhase(d, 0.0)) - 1.0;
         double sRidge = solveS(d, whole);
         double sTrough = solveS(d, whole - 0.5);
-        assertTrue(sTrough < WakeField.halfWidth(HULL, d), "both inside the V");
-        double ridge = WakeField.height(HULL, 1.0, 1.0, d, sRidge);
-        double trough = WakeField.height(HULL, 1.0, 1.0, d, sTrough);
+        assertTrue(sTrough < WakeField.halfWidth(HULL, NOSE, d), "both inside the V");
+        double ridge = WakeField.height(HULL, NOSE, 1.0, 1.0, d, sRidge);
+        double trough = WakeField.height(HULL, NOSE, 1.0, 1.0, d, sTrough);
         assertTrue(ridge > 0.02, "a ridge stands up, was " + ridge);
         assertTrue(trough < -0.02, "a trough dips, was " + trough);
-        assertEquals(ridge, WakeField.height(HULL, 1.0, 1.0, d, -sRidge), 1e-9, "port is starboard's mirror");
+        assertEquals(ridge, WakeField.height(HULL, NOSE, 1.0, 1.0, d, -sRidge), 1e-9, "port is starboard's mirror");
     }
 
     @Test
@@ -120,13 +127,13 @@ final class WakeFieldTest {
     @Test
     void everythingIsInsideTheVAndScalesWithIntensityAndRelief() {
         for (double d = -3.0; d < 40.0; d += 0.5) {
-            double outside = WakeField.halfWidth(HULL, d) + WakeField.EDGE + 0.01;
-            assertEquals(0.0, WakeField.height(HULL, 1.0, 1.0, d, outside), 0.0, "outside at d=" + d);
-            assertEquals(0.0, WakeField.foam(HULL, 1.0, d, outside), 0.0, "no foam outside at d=" + d);
+            double outside = WakeField.halfWidth(HULL, NOSE, d) + WakeField.EDGE + 0.01;
+            assertEquals(0.0, WakeField.height(HULL, NOSE, 1.0, 1.0, d, outside), 0.0, "outside at d=" + d);
+            assertEquals(0.0, WakeField.foam(HULL, NOSE, 1.0, d, outside), 0.0, "no foam outside at d=" + d);
         }
-        double full = WakeField.height(HULL, 1.0, 1.0, 8.0, 1.0);
-        assertEquals(full / 2.0, WakeField.height(HULL, 0.5, 1.0, 8.0, 1.0), 1e-9);
-        assertEquals(full / 4.0, WakeField.height(HULL, 1.0, 0.25, 8.0, 1.0), 1e-9);
+        double full = WakeField.height(HULL, NOSE, 1.0, 1.0, 8.0, 1.0);
+        assertEquals(full / 2.0, WakeField.height(HULL, NOSE, 0.5, 1.0, 8.0, 1.0), 1e-9);
+        assertEquals(full / 4.0, WakeField.height(HULL, NOSE, 1.0, 0.25, 8.0, 1.0), 1e-9);
     }
 
     @Test
@@ -147,18 +154,19 @@ final class WakeFieldTest {
 
     @Test
     void foamIsSolidAtTheSternThinsBehindAndSitsOnTheBowsShoulders() {
-        double stern = WakeField.foam(HULL, 1.0, HULL * 0.6, 0.0);
-        double back = WakeField.foam(HULL, 1.0, HULL * 4.0, 0.0);
-        double farBack = WakeField.foam(HULL, 1.0, 40.0, 0.0);
+        double stern = WakeField.foam(HULL, NOSE, 1.0, HULL * 0.6, 0.0);
+        double back = WakeField.foam(HULL, NOSE, 1.0, HULL * 4.0, 0.0);
+        double farBack = WakeField.foam(HULL, NOSE, 1.0, 40.0, 0.0);
         assertTrue(stern > 0.9, "solid at the stern, was " + stern);
         assertTrue(back < stern && back > 0.1, "thinner a few hulls back, was " + back);
         assertTrue(farBack < 0.02, "gone far back, was " + farBack);
-        assertTrue(WakeField.foam(HULL, 1.0, -HULL * 0.35, HULL * 0.5) > 0.5, "the bow's shoulder foams");
-        assertTrue(WakeField.foam(HULL, 1.0, -HULL * 0.35, 0.0) < WakeField.foam(HULL, 1.0, -HULL * 0.35, HULL * 0.5), "less between the shoulders");
-        assertTrue(WakeField.foam(HULL, 1.0, -HULL * 0.8, 0.0) < 0.1, "no churn ahead of the bow");
+        assertTrue(WakeField.foam(HULL, NOSE, 1.0, -HULL * 0.3, HULL * 0.52) > 0.8, "the bow's shoulder foams hard");
+        assertTrue(WakeField.foam(HULL, NOSE, 1.0, -HULL * 0.3, 0.0) < WakeField.foam(HULL, NOSE, 1.0, -HULL * 0.3, HULL * 0.52), "less between the shoulders");
+        assertTrue(WakeField.foam(HULL, NOSE, 1.0, HULL * 0.2, HULL * 0.55) > 0.3, "streaming back along the side");
+        assertEquals(0.0, WakeField.foam(HULL, NOSE, 1.0, -HULL * 0.8, 0.0), 0.0, "nothing ahead of the nose");
         for (double d = -2.0; d < 20.0; d += 0.3) {
             for (double s = -6.0; s <= 6.0; s += 0.3) {
-                double f = WakeField.foam(HULL, 1.0, d, s);
+                double f = WakeField.foam(HULL, NOSE, 1.0, d, s);
                 assertTrue(f >= 0.0 && f <= 1.0, "foam in [0, 1] at " + d + "," + s + " was " + f);
             }
         }
@@ -166,10 +174,10 @@ final class WakeFieldTest {
 
     @Test
     void badArgumentsAreRefused() {
-        assertThrows(IllegalArgumentException.class, () -> WakeField.height(0.0, 1.0, 1.0, 1.0, 0.0));
-        assertThrows(IllegalArgumentException.class, () -> WakeField.height(HULL, 1.1, 1.0, 1.0, 0.0));
-        assertThrows(IllegalArgumentException.class, () -> WakeField.height(HULL, 1.0, -1.0, 1.0, 0.0));
-        assertThrows(IllegalArgumentException.class, () -> WakeField.foam(HULL, -0.1, 1.0, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeField.height(0.0, NOSE, 1.0, 1.0, 1.0, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeField.height(HULL, NOSE, 1.1, 1.0, 1.0, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeField.height(HULL, NOSE, 1.0, -1.0, 1.0, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeField.foam(HULL, NOSE, -0.1, 1.0, 0.0));
     }
 
     /** The starboard offset at which the phase is {@code phase}, {@code d} behind the hull's centre. */

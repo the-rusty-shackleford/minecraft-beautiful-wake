@@ -78,8 +78,8 @@ public final class WakeMesh {
 
     /** How far inside the V the edge coordinate goes before it stops, in blocks: past it the skin is all one thing. */
     public static final double EDGE_INSIDE = -3.0;
-    /** Rows laid ahead of the hull's centre for the bow wave and the V's point, as fractions of the hull's width ahead. */
-    private static final double[] AHEAD = {WakeField.POINT_AHEAD, 0.7, 0.5, 0.3, 0.1};
+    /** Rows laid ahead of the hull's centre for the bow wave and the nose, as fractions of the nose's length. */
+    private static final double[] AHEAD = {1.0, 0.85, 0.65, 0.4, 0.15};
     /** Rows thin out with age: every sample this young, then every second, then every third. */
     public static final int EVERY_SAMPLE_UNTIL = 24;
     public static final int EVERY_SECOND_UNTIL = 60;
@@ -97,6 +97,8 @@ public final class WakeMesh {
     public static final float SHADE_MIN = 0.55f;
     /** The tightest turn a row can follow on the inside, as a fraction of the turn's radius: past it rows would fold over each other. */
     private static final double INSIDE_OF_TURN = 0.85;
+    /** How far behind the hull, in blocks, the sheet and its lines fall to a third at full size; the size scales it. */
+    public static final double REACH_AT_FULL_SIZE = 45.0;
 
     /**
      * effects: returns the surface along {@code samples} at {@code now},
@@ -123,8 +125,9 @@ public final class WakeMesh {
         if (columns < 3 || columns % 2 == 0) {
             throw new IllegalArgumentException("columns must be odd and >= 3, was " + columns);
         }
-        if (table.hull() != p.hullWidth()) {
-            throw new IllegalArgumentException("table is for a hull " + table.hull() + " wide, params for " + p.hullWidth());
+        if (!table.fits(p)) {
+            throw new IllegalArgumentException("table is for a hull " + table.hull() + " wide with a nose of " + table.nose()
+                    + ", params for " + p.hullWidth() + " and " + p.nose());
         }
         long tickNow = (long) Math.floor(now);
         // The samples apart from one another, thinned with age: the intensity
@@ -160,9 +163,10 @@ public final class WakeMesh {
         double[] heading = heading(apart, n - 1);
         double headIntensity = intensityAt(samples, index.get(n - 1), p);
         double hull = p.hullWidth();
+        double noseLength = hull * p.nose();
         for (double ahead : AHEAD) {
-            rows.add(row(head.x() + heading[0] * ahead * hull, head.surfaceY(), head.z() + heading[1] * ahead * hull,
-                    heading, -ahead * hull, head.tick(), headIntensity, 0L, p, columns, 0.0, table));
+            rows.add(row(head.x() + heading[0] * ahead * noseLength, head.surfaceY(), head.z() + heading[1] * ahead * noseLength,
+                    heading, -ahead * noseLength, head.tick(), headIntensity, 0L, p, columns, 0.0, table));
         }
         for (int i = n - 1; i >= 0; i--) {
             Sample s = apart.get(i);
@@ -192,7 +196,7 @@ public final class WakeMesh {
         double hull = p.hullWidth();
         double px = -heading[1];   // starboard
         double pz = heading[0];
-        double half = WakeField.halfWidth(hull, d) + MARGIN;
+        double half = WakeField.halfWidth(hull, p.nose(), d) + MARGIN;
         double starboardHalf = half;
         double portHalf = half;
         if (curvature > 1e-6) {
@@ -200,13 +204,14 @@ public final class WakeMesh {
         } else if (curvature < -1e-6) {
             portHalf = Math.min(half, INSIDE_OF_TURN / -curvature);
         }
-        double ageFade = Wake.foamAlpha(1.0, age, p.lifeTicks());
+        // The sheet fades with age, and with distance behind the hull by the wake's size.
+        double ageFade = Wake.foamAlpha(1.0, age, p.lifeTicks()) * Math.exp(-Math.max(0.0, d) / (REACH_AT_FULL_SIZE * p.size()));
         double chevronStart = Math.max(0.0, Math.min(1.0, (d - hull * WakeField.CHEVRON_FROM) / hull));
         int side = columns / 2;
         List<Vertex> row = new ArrayList<>(columns);
         for (int j = 0; j < columns; j++) {
             double s = j < side ? -portHalf * (side - j) / side : starboardHalf * (j - side) / side;
-            double scale = intensity * p.relief();
+            double scale = intensity * p.relief() * p.size();
             double h = scale * table.height(d, s);
             double foam = Math.min(1.0, Math.sqrt(intensity) * table.foam(d, s)) * ageFade;
             // The normal from the slope along and across the track; d runs
@@ -216,9 +221,9 @@ public final class WakeMesh {
             double nx = hd * heading[0] - hs * px;
             double nz = hd * heading[1] - hs * pz;
             double len = Math.sqrt(nx * nx + 1.0 + nz * nz);
-            double edgeFade = WakeField.edgeFade(hull, d, s);
+            double edgeFade = WakeField.edgeFade(hull, p.nose(), d, s);
             double skin = edgeFade * ageFade * intensity;
-            float edge = (float) Math.max(EDGE_INSIDE, Math.abs(s) - WakeField.halfWidth(hull, d));
+            float edge = (float) Math.max(EDGE_INSIDE, Math.abs(s) - WakeField.halfWidth(hull, p.nose(), d));
             float chevron = (float) WakeField.chevronPhase(d, s);
             double lines = skin * chevronStart * Math.exp(-Math.max(0.0, d) / WakeField.CHEVRON_DECAY);
             row.add(new Vertex(cx + px * s, surfaceY + p.lift() + h, cz + pz * s, nx / len, 1.0 / len, nz / len,

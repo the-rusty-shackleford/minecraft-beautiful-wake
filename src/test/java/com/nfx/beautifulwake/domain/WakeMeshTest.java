@@ -36,11 +36,12 @@ import org.junit.jupiter.api.Test;
  * V's edge and clamped inside, the chevron lines hidden before the
  * chevrons start and the phase continuous, the foam pinned to the tick. A curved track bends the
  * grid; a tight turn holds the inside short. Shade: flat, toward, away,
- * clamped, on a mesh. A trail at rest makes no mesh.
+ * clamped, on a mesh. Size: fades sooner, stands lower, as wide at the
+ * hull. A trail at rest makes no mesh.
  */
 final class WakeMeshTest {
     private static final WakeParams P = new WakeParams(1.4, 90, 0.075, 0.35, 20.0, 0.015);
-    private static final WakeTable T = WakeTable.of(1.4);
+    private static final WakeTable T = WakeTable.of(1.4, WakeField.HULL_NOSE);
     private static final int COLUMNS = 25;
 
     /** A straight run east at {@code speed} for {@code ticks}, the newest sample at tick {@code ticks}. */
@@ -60,8 +61,9 @@ final class WakeMeshTest {
     }
 
     @Test
-    void theTableMustBeForTheSameHull() {
-        assertThrows(IllegalArgumentException.class, () -> WakeMesh.build(run(0.4, 10), 10, P, COLUMNS, WakeTable.of(0.9)));
+    void theTableMustBeForTheSameHullAndNose() {
+        assertThrows(IllegalArgumentException.class, () -> WakeMesh.build(run(0.4, 10), 10, P, COLUMNS, WakeTable.of(0.9, WakeField.HULL_NOSE)));
+        assertThrows(IllegalArgumentException.class, () -> WakeMesh.build(run(0.4, 10), 10, P, COLUMNS, WakeTable.of(1.4, WakeField.SWIMMER_NOSE)));
     }
 
     @Test
@@ -145,7 +147,7 @@ final class WakeMeshTest {
         assertTrue(bow.get(COLUMNS / 2).skin() > 0.9f, "full skin on the track at the bow");
         assertTrue(mesh.rows().get(bowRow + 2).get(COLUMNS / 2).foam() > 0.8f, "churn behind the stern");
         assertTrue(old.get(COLUMNS / 2).skin() < bow.get(COLUMNS / 2).skin() * 0.4f, "the oldest row has faded");
-        assertEquals(0.0f, mesh.rows().get(0).get(COLUMNS / 2).skin(), 1e-6f, "nothing at the V's point ahead of the bow");
+        assertEquals(0.0f, mesh.rows().get(0).get(COLUMNS / 2).skin(), 1e-6f, "nothing at the nose's tip ahead of the bow");
         assertEquals(0.0f, mesh.rows().get(0).get(COLUMNS / 2).foam(), 1e-6f);
     }
 
@@ -252,6 +254,24 @@ final class WakeMeshTest {
         double mirrorLast = Math.hypot(mirrorRow.get(COLUMNS - 1).x() - mirrorMiddle.x(), mirrorRow.get(COLUMNS - 1).z() - mirrorMiddle.z());
         assertEquals(first, mirrorLast, 1e-6, "the other way round, the other side is the inside");
         assertEquals(last, mirrorFirst, 1e-6);
+    }
+
+    @Test
+    void aSmallerSizeFadesTheSheetSoonerAndStandsLower() {
+        WakeParams small = new WakeParams(1.4, 90, 0.075, 0.35, 20.0, 0.015, 1.0, 0.0, 1.0, 0.5, WakeField.HULL_NOSE);
+        WakeMesh.Mesh full = WakeMesh.build(run(0.4, 80), 80, P, COLUMNS, T);
+        WakeMesh.Mesh half = WakeMesh.build(run(0.4, 80), 80, small, COLUMNS, T);
+        int far = full.rows().size() - 10;
+        WakeMesh.Vertex fullFar = full.rows().get(far).get(COLUMNS / 2);
+        WakeMesh.Vertex halfFar = half.rows().get(far).get(COLUMNS / 2);
+        assertTrue(halfFar.skin() < fullFar.skin() * 0.8f, "fainter far back: " + halfFar.skin() + " vs " + fullFar.skin());
+        assertTrue(halfFar.lines() < fullFar.lines() * 0.8f, "lines too");
+        double fullTop = full.rows().stream().flatMap(List::stream).mapToDouble(WakeMesh.Vertex::y).max().orElseThrow() - 63.0 - P.lift();
+        double halfTop = half.rows().stream().flatMap(List::stream).mapToDouble(WakeMesh.Vertex::y).max().orElseThrow() - 63.0 - P.lift();
+        assertEquals(fullTop / 2.0, halfTop, 1e-9, "half as tall");
+        // At the hull the sheet is as wide either way: the outline is the hull's.
+        assertEquals(full.rows().get(5).get(0).x(), half.rows().get(5).get(0).x(), 1e-9);
+        assertEquals(full.rows().get(5).get(0).z(), half.rows().get(5).get(0).z(), 1e-9);
     }
 
     @Test

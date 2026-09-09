@@ -24,7 +24,9 @@ import com.nfx.beautifulwake.domain.Trail;
 import com.nfx.beautifulwake.domain.Wake;
 import com.nfx.beautifulwake.domain.WakeParams;
 import com.nfx.beautifulwake.domain.WakeTable;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
@@ -59,32 +61,34 @@ public final class WakeTracker {
     /** A followed entity: its kind, its trail, its bow's bubbles, the water's height last seen, and the last tick it was seen. */
     public record Tracked(Craft.Kind kind, Trail trail, BowFoam foam, double width, double surfaceY, long seenAt) {}
 
-    /**
-     * The field's tables, one per hull width the client has met, keyed by
-     * the width in twentieths of a block: a boat's, a player's, a cow's --
-     * a handful, each built once, off the render thread, since one takes
-     * longer than a frame. A craft whose table is still building is drawn
-     * without a wake for those few frames.
-     */
-    private static final Map<Long, CompletableFuture<WakeTable>> TABLES = new HashMap<>();
+    /** One table being built or built, for one hull width and nose. */
+    private record Building(double hull, double nose, CompletableFuture<WakeTable> future) {}
 
     /**
-     * effects: returns the field tabulated for {@code p}'s hull, or empty
-     * while it is still being built -- the build is started the first time
-     * that width is asked for
+     * The field's tables, one per hull width and nose the client has met:
+     * a boat's, a player's, a cow's -- a handful, each built once, off the
+     * render thread, since one takes longer than a frame. A craft whose
+     * table is still building is drawn without a wake for those few
+     * frames. A list scanned by value, so asking allocates nothing.
+     */
+    private static final List<Building> TABLES = new ArrayList<>();
+
+    /**
+     * effects: returns the field tabulated for {@code p}'s hull and nose,
+     * or empty while it is still being built -- the build is started the
+     * first time that hull and nose are asked for
      */
     public static Optional<WakeTable> table(WakeParams p) {
         double hull = p.hullWidth();
-        CompletableFuture<WakeTable> building = TABLES.computeIfAbsent(Math.round(hull * 20.0),
-                key -> CompletableFuture.supplyAsync(() -> WakeTable.of(hull)));
-        WakeTable table = building.getNow(null);
-        if (table != null && table.hull() != hull) {
-            // Two hulls within a twentieth of a block of each other: the later one gets its own.
-            building = CompletableFuture.supplyAsync(() -> WakeTable.of(hull));
-            TABLES.put(Math.round(hull * 20.0), building);
-            table = null;
+        double nose = p.nose();
+        for (int i = 0; i < TABLES.size(); i++) {
+            Building b = TABLES.get(i);
+            if (b.hull() == hull && b.nose() == nose) {
+                return Optional.ofNullable(b.future().getNow(null));
+            }
         }
-        return Optional.ofNullable(table);
+        TABLES.add(new Building(hull, nose, CompletableFuture.supplyAsync(() -> WakeTable.of(hull, nose))));
+        return Optional.empty();
     }
 
     /** effects: starts building the tables for the hulls every client meets first: a boat's and a player's */
@@ -183,7 +187,8 @@ public final class WakeTracker {
         }
         WakeParams p = Craft.params(tracked.kind(), tracked.width());
         double intensity = intensity(tracked, p);
-        int count = BowFoam.countFor(intensity, tracked.kind() == Craft.Kind.SWIMMER ? SWIMMER_BUBBLES : HULL_BUBBLES);
+        int most = (int) Math.round((tracked.kind() == Craft.Kind.SWIMMER ? SWIMMER_BUBBLES : HULL_BUBBLES) * p.size());
+        int count = BowFoam.countFor(intensity, most);
         if (count == 0) {
             return;
         }

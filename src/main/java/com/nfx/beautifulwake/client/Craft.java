@@ -18,6 +18,7 @@
 package com.nfx.beautifulwake.client;
 
 import com.nfx.beautifulwake.WakeConfig;
+import com.nfx.beautifulwake.domain.WakeField;
 import com.nfx.beautifulwake.domain.WakeParams;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -76,18 +77,21 @@ public final class Craft {
 
     /**
      * effects: returns the shape of {@code kind}'s wake for a body
-     * {@code width} wide: a hull's at full strength and relief, a swimmer's
-     * from a body and a half's width, quicker to reach full at a swimmer's
-     * speeds, at the configured fraction of a boat's, standing lower
+     * {@code width} wide: a hull's at full strength and relief with a
+     * boat's nose, a swimmer's from a body and a half's width, quicker to
+     * reach full at a swimmer's speeds, at the configured fraction of a
+     * boat's, standing lower, with a nose short enough to stay inside the
+     * body
      */
     public static WakeParams params(Kind kind, double width) {
         double relief = WakeConfig.RELIEF.get();
+        double size = WakeConfig.SCALE.get();
         return switch (kind) {
             case WATERCRAFT -> new WakeParams(Math.max(0.6, width), WakeConfig.lifeTicks(),
-                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief);
+                    WakeConfig.MIN_SPEED.get(), WakeConfig.FULL_SPEED.get(), 20.0, LIFT, 1.0, HULL_FLOOR, relief, size, WakeField.HULL_NOSE);
             case SWIMMER -> new WakeParams(Math.max(0.5, width * 1.5), WakeConfig.lifeTicks(),
                     WakeConfig.SWIMMER_MIN_SPEED.get(), WakeConfig.SWIMMER_FULL_SPEED.get(), 12.0, LIFT,
-                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF);
+                    WakeConfig.SWIMMER_STRENGTH.get(), SWIMMER_FLOOR, relief * SWIMMER_RELIEF, size, WakeField.SWIMMER_NOSE);
         };
     }
 

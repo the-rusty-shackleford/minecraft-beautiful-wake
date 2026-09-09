@@ -26,36 +26,43 @@ import org.junit.jupiter.api.Test;
 /**
  * Partitions. Against the field: heights, foam and slopes on and off the
  * grid's points, inside the V, on its edge, outside, ahead of the point,
- * port and starboard, at the reach and beyond it. The hull. Bad hulls.
+ * port and starboard, at the reach and beyond it. The hull and the nose,
+ * fitting params or not. Bad hulls and noses.
  */
 final class WakeTableTest {
     private static final double HULL = 1.375;
-    private static final WakeTable T = WakeTable.of(HULL);
+    private static final double NOSE = WakeField.HULL_NOSE;
+    private static final WakeTable T = WakeTable.of(HULL, NOSE);
 
     @Test
     void theTableReadsBackTheFieldToWithinAFewThousandthsOfABlock() {
         double worst = 0.0;
         double worstAtEdge = 0.0;
         double worstFoam = 0.0;
+        double worstFoamAtEdge = 0.0;
         for (double d = -HULL * 1.5; d < WakeTable.REACH; d += 0.037) {
-            double half = WakeField.halfWidth(HULL, d) + WakeField.EDGE + 0.5;
+            double half = WakeField.halfWidth(HULL, NOSE, d) + WakeField.EDGE + 0.5;
             for (double s = -half; s <= half; s += 0.041) {
-                double error = Math.abs(T.height(d, s) - WakeField.height(HULL, 1.0, 1.0, d, s));
+                double error = Math.abs(T.height(d, s) - WakeField.height(HULL, NOSE, 1.0, 1.0, d, s));
                 // The V's edge is a crisp fall over a couple of samples; the
                 // texture draws the edge, so the height there matters less.
-                boolean atEdge = Math.abs(Math.abs(s) - WakeField.halfWidth(HULL, d)) < WakeField.EDGE + WakeTable.STEP
-                        || d < -HULL * WakeField.POINT_AHEAD + WakeTable.STEP;
+                boolean atEdge = Math.abs(Math.abs(s) - WakeField.halfWidth(HULL, NOSE, d)) < WakeField.EDGE + WakeTable.STEP
+                        || d < -HULL * NOSE + WakeTable.STEP;
+                double foamError = Math.abs(T.foam(d, s) - WakeField.foam(HULL, NOSE, 1.0, d, s));
                 if (atEdge) {
                     worstAtEdge = Math.max(worstAtEdge, error);
+                    worstFoamAtEdge = Math.max(worstFoamAtEdge, foamError);
                 } else {
                     worst = Math.max(worst, error);
+                    worstFoam = Math.max(worstFoam, foamError);
                 }
-                worstFoam = Math.max(worstFoam, Math.abs(T.foam(d, s) - WakeField.foam(HULL, 1.0, d, s)));
             }
         }
         assertTrue(worst < 0.006, "worst height error inside " + worst);
-        assertTrue(worstAtEdge < 0.04, "worst height error at the edge " + worstAtEdge);
-        assertTrue(worstFoam < 0.1, "worst foam error " + worstFoam);
+        // The nose's edge is an ellipse under the bow wave, steep and hidden under the hull.
+        assertTrue(worstAtEdge < 0.15, "worst height error at the edge " + worstAtEdge);
+        assertTrue(worstFoam < 0.1, "worst foam error inside " + worstFoam);
+        assertTrue(worstFoamAtEdge < 0.3, "worst foam error at the edge " + worstFoamAtEdge);
     }
 
     @Test
@@ -63,8 +70,8 @@ final class WakeTableTest {
         double h = 0.01;
         for (double d : new double[] {-0.4, 0.8, 3.0, 9.5, 20.0}) {
             for (double s : new double[] {0.0, 0.4, 1.3, 2.7}) {
-                double fieldD = (WakeField.height(HULL, 1.0, 1.0, d + h, s) - WakeField.height(HULL, 1.0, 1.0, d - h, s)) / (2 * h);
-                double fieldS = (WakeField.height(HULL, 1.0, 1.0, d, s + h) - WakeField.height(HULL, 1.0, 1.0, d, s - h)) / (2 * h);
+                double fieldD = (WakeField.height(HULL, NOSE, 1.0, 1.0, d + h, s) - WakeField.height(HULL, NOSE, 1.0, 1.0, d - h, s)) / (2 * h);
+                double fieldS = (WakeField.height(HULL, NOSE, 1.0, 1.0, d, s + h) - WakeField.height(HULL, NOSE, 1.0, 1.0, d, s - h)) / (2 * h);
                 assertEquals(fieldD, T.slopeD(d, s), 0.05, "slope along at " + d + "," + s);
                 assertEquals(fieldS, T.slopeS(d, s), 0.05, "slope across at " + d + "," + s);
                 assertEquals(-T.slopeS(d, s), T.slopeS(d, -s), 1e-9, "odd across the track");
@@ -76,7 +83,7 @@ final class WakeTableTest {
     void nothingOutsideTheVAheadOfThePointOrBeyondTheGridsWidth() {
         assertEquals(0.0, T.height(-HULL * 1.2, 0.0));
         assertEquals(0.0, T.foam(-HULL * 1.2, 0.0));
-        double outside = WakeField.halfWidth(HULL, 10.0) + WakeField.EDGE + 0.3;
+        double outside = WakeField.halfWidth(HULL, NOSE, 10.0) + WakeField.EDGE + 0.3;
         assertEquals(0.0, T.height(10.0, outside), 1e-6);
         assertEquals(0.0, T.height(10.0, 500.0));
         assertEquals(0.0, T.foam(10.0, 500.0));
@@ -89,9 +96,13 @@ final class WakeTableTest {
     }
 
     @Test
-    void theHullIsKeptAndBadOnesRefused() {
+    void theHullAndNoseAreKeptAndBadOnesRefused() {
         assertEquals(HULL, T.hull());
-        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(0.0));
-        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(Double.POSITIVE_INFINITY));
+        assertEquals(NOSE, T.nose());
+        assertTrue(T.fits(new WakeParams(HULL, 90, 0.075, 0.35, 20.0, 0.02)));
+        assertTrue(!T.fits(new WakeParams(HULL, 90, 0.075, 0.35, 20.0, 0.02, 1.0, 0.0, 1.0, 1.0, WakeField.SWIMMER_NOSE)));
+        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(0.0, NOSE));
+        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(HULL, 0.0));
+        assertThrows(IllegalArgumentException.class, () -> WakeTable.of(Double.POSITIVE_INFINITY, NOSE));
     }
 }

@@ -11,13 +11,16 @@ client-side mod for NeoForge 1.21.1.
   and its own light and shadow. The V opens at the Kelvin angle, 19.47
   degrees either side of the track whatever the speed, bends where the
   track bends, and comes to a point at the bow. It is drawn the way a
-  cel-shaded sea draws one: a pale sheet of disturbed water edged in a
-  crisp white line, white lines along the chevron ridges, a churn of round
-  bubbles behind the stern, and a burst of bubbles thrown up off the bow's
-  shoulders that fall back, float a moment and pop -- plus spray, more the
-  faster. All of it scales with speed, from a proper wake at a paddle to
-  the full pattern at a boat's top speed, so it grows as the boat gathers
-  way and dies as it drifts.
+  pixel sea draws one: a pale sheet of disturbed water edged in a white
+  line that steps in and out along its length, white lines along the
+  chevron ridges, foam breaking at the bow's shoulders and streaming back
+  along the sides, a churn of round bubbles behind the stern, and a burst
+  of bubbles thrown up off the bow that fall back, float a moment and pop
+  -- plus spray, more the faster. All the foam is drawn at the game's own
+  sixteen pixels to the block and shimmers between frames. All of it
+  scales with speed, from a proper wake at a paddle to the full pattern at
+  a boat's top speed, so it grows as the boat gathers way and dies as it
+  drifts; and it is sized to a rowboat, with a `scale` to make more of it.
 - **The same behind a swimmer**, smaller and lower. A player wading or an
   animal crossing the surface leaves a V of its own with a little churn and
   a few bubbles; nothing under water, and nothing riding a boat, whose wake
@@ -26,7 +29,10 @@ client-side mod for NeoForge 1.21.1.
   fades, droplets thrown up and bubbles left under, sized by what fell and
   how fast: an apple is light, an ingot dense, a block heavy, a stack heavier
   than one, a player heavier still, and a fall from height bigger than a drop
-  from the hand. The game itself splashes only for living things.
+  from the hand. A heavy enough splash leaves foam on its ring -- white
+  pixel flecks round the crest, churning as the ring spreads, more the
+  heavier -- and a gentle one leaves none. The game itself splashes only
+  for living things.
 
 Client only. Every client already knows where every boat is and how fast it
 moves, so each draws the wakes it can see; a server needs nothing and a
@@ -58,9 +64,14 @@ the pale sheet with the edge line, mapped across by the distance from the
 V's edge so the line is crisp however coarse the grid; the chevron lines,
 mapped along by the chevron phase so a line lies on every ridge; and the
 foam, pinned to the water so the churn stays where the hull churned it.
-The bow's bubbles are a small simulation -- thrown up and outward, falling
-under gravity, settling and popping -- drawn as billboards facing the
-camera, the one part of the wake that is not a surface.
+Each has two texture frames with the pixels stepped differently, shown
+turn and turn about every four ticks, so the foam shimmers and boils at no
+cost beyond picking a texture. The bow's bubbles are a small simulation --
+thrown up and outward, falling under gravity, settling and popping --
+drawn as billboards facing the camera, the one part of the wake that is
+not a surface. A splash's foam is three frames of flecks over its ring,
+cycled every three ticks from a frame and a turn its birth tick picks, so
+no two splashes foam alike.
 
 What counts as a watercraft is any boat -- the vanilla class, which nearly
 every modded boat extends -- or any entity type listed in the config. A
@@ -83,6 +94,7 @@ its chunk, spawned there) did not fall in and splashes nothing.
 | `wake.fullSpeed` | 0.35 | blocks per tick at which the wake is at full strength |
 | `wake.lifeSeconds` | 4.5 | how long the wake lasts |
 | `wake.relief` | 1.0 | how high the wake stands: 1 is a bow wave a fifth of a block tall, 0 lays it flat |
+| `wake.scale` | 0.7 | the wake's overall size: how far behind the hull the sheet reaches, how high it stands, how many bubbles; 1 is a big wake for a rowboat |
 | `wake.sprayMax` | 8 | droplets per tick at full speed |
 | `wake.maxDistance` | 96 | blocks from the camera beyond which nothing is drawn |
 | `wake.extraWatercraft` | [] | entity type ids counted as watercraft besides boats |
@@ -126,7 +138,7 @@ bubbles), `Splash` and `Ripple` (a splash's strength, ring and count).
 `src/main` is the client: `Craft` (what makes a wake, and the water surface
 under it), `WakeTracker` and `SplashTracker` (a tick each), `Mass` (how
 heavy a thing is), `WakeRenderer`. `src/gametest` is the booth, a mod of its
-own, never shipped. `devtools/art/build.py` writes the five textures.
+own, never shipped. `devtools/art/build.py` writes every texture.
 
 ## License
 

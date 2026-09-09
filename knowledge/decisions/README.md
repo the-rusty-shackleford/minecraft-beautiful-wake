@@ -17,3 +17,4 @@ tags: [index]
 | D-0002 | The booth makes its own world, and clears it every run |
 | D-0003 | The wake is drawn bold and cel-shaded: a floor on intensity, a solid churn over a halo, thick arms, a bow wave (superseded by D-0004) |
 | D-0004 | The wake is a surface in relief: a height field meshed over the water, shaded, edged and lined by texture, with a bubble burst at the bow |
+| D-0005 | Foam is pixels at the game's density, uneven and animated; the wake is scaled to a rowboat; a splash foams by its weight |

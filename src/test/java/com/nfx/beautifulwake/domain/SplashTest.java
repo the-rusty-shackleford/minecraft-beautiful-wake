@@ -24,13 +24,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 /**
- * Partitions. Strength: no mass, gentle entry, a fall, the cap, bad
+ * Partitions. Foam: below the start, at it, between (heavier is more),
+ * at full, capped, lingering past the ring, at the end, past it, bad
+ * arguments. Strength: no mass, gentle entry, a fall, the cap, bad
  * arguments. Ring: at birth, mid-life (past half its spread), at the end,
  * past it; a bigger splash spreads wider; alpha by strength and age.
  * Droplets and bubbles: nothing, an apple, a player, the caps. Ripple RI
  * and age.
  */
 final class SplashTest {
+
+    @Test
+    void foamComesOnlyWithAHeavyEnoughSplashAndLingersAsItFades() {
+        assertEquals(0.0, Splash.foamAlpha(0.5, 0, 18), "an apple set on the water: none");
+        assertEquals(0.0, Splash.foamAlpha(Splash.FOAM_FROM, 0, 18), "at the start: none yet");
+        double ingot = Splash.foamAlpha(1.5, 0, 18);
+        double block = Splash.foamAlpha(2.0, 0, 18);
+        assertTrue(ingot > 0.0 && ingot < block, "heavier, more: " + ingot + " vs " + block);
+        assertEquals(1.0, Splash.foamAlpha(Splash.FOAM_FULL, 0, 18), 1e-9);
+        assertEquals(1.0, Splash.foamAlpha(Splash.MAX_STRENGTH, 0, 18), 1e-9, "capped");
+        assertTrue(Splash.foamAlpha(3.0, 9, 18) > Splash.ringAlpha(3.0, 9, 18), "foam outlasts the ring");
+        assertEquals(0.0, Splash.foamAlpha(3.0, 18, 18), 1e-9);
+        assertEquals(0.0, Splash.foamAlpha(3.0, 40, 18), 1e-9);
+        assertThrows(IllegalArgumentException.class, () -> Splash.foamAlpha(3.5, 0, 18));
+        assertThrows(IllegalArgumentException.class, () -> Splash.foamAlpha(1.0, -1, 18));
+    }
 
     @Test
     void strengthIsMassTimesAFactorThatGrowsWithTheFall() {

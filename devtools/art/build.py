@@ -96,127 +96,177 @@ def worley(width: int, height: int, cells_x: int, cells_y: int, seed: int):
 
 
 # The wake's colours: the pale sheet of disturbed water, and the white of
-# its lines and foam. The sheet is drawn at less than half alpha, so it
+# its lines and foam. The sheet is drawn at under half alpha, so it
 # lightens the water under it rather than covering it; a shader's water
 # shows through.
-SHEET = (188, 224, 252, 108)
+SHEET = (188, 224, 252, 96)
 LINE = (255, 255, 255, 236)
+RIM = (205, 232, 255, 255)
 CLEAR = (0, 0, 0, 0)
 
+# Everything white is drawn at the game's own density, sixteen pixels to
+# the block, with hard edges: foam in this world is pixels, not airbrush,
+# and the entity render type samples textures without blurring, so a
+# pixel here is a square on the water.
+PX = 16
+
 # The skin and line textures map across the V by the distance from its
-# edge in blocks: from EDGE_INSIDE (well inside, where the sheet is all
-# one thing) to EDGE_OUTSIDE (past the edge, where there is nothing). The
-# renderer's WakeMesh.EDGE_INSIDE and WakeRenderer.EDGE_OUTSIDE are these.
+# edge in blocks, from EDGE_INSIDE (well inside, where the sheet is all
+# one thing) to EDGE_OUTSIDE (past the edge, where there is nothing), and
+# along it by the chevron phase, one repeat per chevron wavelength. The
+# renderer's WakeMesh.EDGE_INSIDE, WakeRenderer.EDGE_OUTSIDE and
+# WakeField.CHEVRON_WAVELENGTH are these.
 EDGE_INSIDE = -3.0
 EDGE_OUTSIDE = 0.5
-# The chevron lines' texture repeats once per chevron wavelength along v:
-# WakeField.CHEVRON_WAVELENGTH, in blocks.
 CHEVRON_WAVELENGTH = 3.0
-
-
-def soft_edge(x: float, width: float) -> float:
-    """1 inside a band |x| < width/2, falling to 0 over a pixel and a half either side, in blocks per pixel units the caller picks."""
-    return max(0.0, min(1.0, (width / 2.0 - abs(x)) / width * 6.0 + 0.5))
+ACROSS = int(round((EDGE_OUTSIDE - EDGE_INSIDE) * PX))     # 56
+ALONG = int(round(CHEVRON_WAVELENGTH * PX))                 # 48
+# The churn's texture tiles over WakeMesh.FOAM_TILE blocks.
+FOAM_TILE = 3.0
 
 
 def blocks_across(x_pixel: int, width: int) -> float:
-    """The edge coordinate, in blocks, of a pixel column of the skin or line texture."""
+    """The edge coordinate, in blocks, at the centre of a pixel column of the skin or line texture."""
     return EDGE_INSIDE + (x_pixel + 0.5) / width * (EDGE_OUTSIDE - EDGE_INSIDE)
 
 
-def skin(width: int = 256, height: int = 8):
+def jitter(count: int, seed: int):
+    """A run of -1, 0 or +1 pixel offsets, mostly 0, in short runs so a
+    jittered line breaks into steps rather than fizz: the unevenness of
+    foam. A different seed is a different frame."""
+    noise = Noise(seed)
+    out = []
+    while len(out) < count:
+        v = noise.next()
+        j = -1 if v < 0.28 else (1 if v > 0.72 else 0)
+        out.extend([j] * (2 + int(noise.next() * 3)))
+    return out[:count]
+
+
+def skin(frame: int, width: int = ACROSS, height: int = ALONG):
     """The sheet of disturbed water inside the V and the white line on its
     edge: pale blue inside, fullest down the middle and thinner toward the
-    arms so the lines carry the V, a crisp white line a tenth of a block
-    wide on the edge itself, nothing outside it. The same down every row;
-    the renderer runs v along the chevrons for the line texture, and this
-    one ignores it."""
-    px = []
-    row = []
-    for x in range(width):
-        e = blocks_across(x, width)
-        line = soft_edge(e, 0.11)
-        if e < 0.0:
-            inside = 0.55 + 0.45 * max(0.0, min(1.0, -e / 2.5))     # fuller toward the middle
-        else:
-            inside = max(0.0, 1.0 - e / 0.06)                        # a crisp cut just past the line
-        r = int(SHEET[0] + (LINE[0] - SHEET[0]) * line)
-        g = int(SHEET[1] + (LINE[1] - SHEET[1]) * line)
-        b = int(SHEET[2] + (LINE[2] - SHEET[2]) * line)
-        a = int(SHEET[3] * inside + (LINE[3] - SHEET[3] * inside) * line)
-        row.append((r, g, b, max(0, min(255, a))))
-    for _ in range(height):
-        px.append(list(row))
-    return px
-
-
-def lines(width: int = 256, height: int = 256):
-    """The white lines along the chevron ridges: a line at phase zero, a
-    fainter one at phase one half, each stopping short of the V's edge so
-    it never crosses the edge line; nothing anywhere else."""
+    arms so the lines carry the V, a hard white line two pixels wide on the
+    edge itself, stepping in and out along the V by a pixel, and nothing
+    outside it. Rows run along the V; the two frames step differently, so
+    the edge shimmers as they alternate."""
+    steps = jitter(height, 0x5E1 + frame * 7919)
     px = []
     for y in range(height):
-        phase = (y + 0.5) / height
-        along = min(phase, 1.0 - phase) * CHEVRON_WAVELENGTH            # blocks from the nearest whole phase
-        strong = soft_edge(along, 0.10)
-        faint = 0.3 * soft_edge(phase - 0.5, 0.06 / CHEVRON_WAVELENGTH)
-        cover = max(strong, faint)
+        shift = steps[y] / PX
         row = []
         for x in range(width):
             e = blocks_across(x, width)
-            stop = max(0.0, min(1.0, (-e - 0.18) / 0.12))                   # fade out before the edge line
-            a = int(LINE[3] * cover * stop)
-            row.append((255, 255, 255, a) if a > 0 else CLEAR)
+            if -2.0 / PX + shift <= e < shift:
+                row.append(LINE)
+            elif e < shift:
+                inside = 0.45 + 0.55 * max(0.0, min(1.0, -e / 2.5))     # fuller toward the middle
+                row.append((SHEET[0], SHEET[1], SHEET[2], int(SHEET[3] * inside)))
+            else:
+                row.append(CLEAR)
         px.append(row)
     return px
 
 
-def foam(size: int = 128, count: int = 100, seed: int = 0xF0A):
-    """The churn, the way a cel-shaded sea draws it: a cloud of round
-    white bubbles, overlapping, with soft rims and a faint blue ring just
-    inside each one so they read as bubbles and not as paint; holes
-    between them. Tiles both ways over FOAM_TILE blocks."""
+def lines(frame: int, width: int = ACROSS, height: int = ALONG):
+    """The white lines along the chevron ridges: a line two pixels wide at
+    phase zero and a fainter one at phase one half, each stepping up and
+    down a pixel along its length and each stopping short of the V's edge
+    so it never crosses the edge line; nothing anywhere else."""
+    strong = jitter(width, 0x11E5 + frame * 7919)
+    faint = jitter(width, 0xFA1 + frame * 7919)
+    px = [[CLEAR] * width for _ in range(height)]
+    for x in range(width):
+        if blocks_across(x, width) > -0.18:
+            continue
+        for dy in (0, 1):
+            px[(dy + strong[x]) % height][x] = LINE
+        px[(height // 2 + faint[x]) % height][x] = (255, 255, 255, int(LINE[3] * 0.3))
+    return px
+
+
+def foam(frame: int, size: int = int(FOAM_TILE * PX), count: int = 90, seed: int = 0xF0A):
+    """The churn: a cloud of round white bubbles, one to four pixels in
+    radius, hard-edged with a pale blue rim inside each, overlapping, with
+    holes between; tiling both ways over FOAM_TILE blocks. The second
+    frame is the same cloud with every bubble nudged a pixel and a few
+    popped, so the churn boils as the frames alternate."""
     noise = Noise(seed)
-    discs = []
-    for _ in range(count):
-        discs.append((noise.next() * size, noise.next() * size, 4.0 + 9.0 * noise.next() ** 1.5))
+    discs = [(noise.next() * size, noise.next() * size, 1.0 + 3.2 * noise.next() ** 1.6) for _ in range(count)]
+    if frame:
+        nudge = Noise(seed ^ 0xBEEF)
+        moved = []
+        for cx, cy, r in discs:
+            if nudge.next() < 0.15:
+                continue
+            moved.append((cx + int(nudge.next() * 3) - 1, cy + int(nudge.next() * 3) - 1, r))
+        discs = moved
     px = []
     for y in range(size):
         row = []
         for x in range(size):
-            cover = 0.0
-            rim = 0.0
+            best = None
             for cx, cy, r in discs:
                 dx = (x + 0.5 - cx + size / 2) % size - size / 2
                 dy = (y + 0.5 - cy + size / 2) % size - size / 2
                 d = math.hypot(dx, dy)
-                c = max(0.0, min(1.0, (r - d) / 1.5))                   # 1 inside, soft over a pixel and a half
-                cover = max(cover, c)
-                ring = max(0.0, 1.0 - abs(d - (r - 2.2)) / 1.4) * c
-                rim = max(rim, ring)
-            a = int(255 * cover)
-            r_ = int(255 - 45 * rim)
-            g_ = int(255 - 20 * rim)
-            row.append((r_, g_, 255, a) if a > 0 else CLEAR)
+                if d <= r and (best is None or r - d > best):
+                    best = r - d
+            if best is None:
+                row.append(CLEAR)
+            elif best < 1.0:
+                row.append(RIM)
+            else:
+                row.append((255, 255, 255, 255))
         px.append(row)
     return px
 
 
-def bubble(size: int = 32):
-    """One bubble off the bow: a white disc with a soft rim and a faint blue
-    ring inside it, drawn as a billboard."""
+def bubble(size: int = PX):
+    """One bubble off the bow: a white disc with a pale blue rim, drawn as a billboard."""
     px = []
     c = (size - 1) / 2.0
-    radius = size * 0.44
+    radius = size * 0.42
     for y in range(size):
         row = []
         for x in range(size):
             d = math.hypot(x - c, y - c)
-            cover = max(0.0, min(1.0, (radius - d) / 1.5))
-            ring = max(0.0, 1.0 - abs(d - (radius - 3.0)) / 2.0) * cover
-            a = int(255 * cover)
-            row.append((int(255 - 50 * ring), int(255 - 22 * ring), 255, a) if a > 0 else CLEAR)
+            if d > radius:
+                row.append(CLEAR)
+            elif d > radius - 1.2:
+                row.append(RIM)
+            else:
+                row.append((255, 255, 255, 255))
         px.append(row)
+    return px
+
+
+def flecks(frame: int, size: int = 64):
+    """The foam a splash leaves on its ring: white pixels -- one and two
+    across, hard-edged, the way a pixel sea draws foam -- scattered thickly
+    round the crest of the ring texture, thinning inward and outward, with
+    a few left in the middle where the thing went in. Drawn over the ring
+    at the splash's foam opacity, so a gentle drop shows none of them. Each
+    frame is its own scatter; the renderer cycles them, so the foam churns."""
+    noise = Noise(0xF1EC + frame * 7919)
+    px = [[CLEAR] * size for _ in range(size)]
+    c = (size - 1) / 2.0
+    for _ in range(170):
+        r = 0.78 + (noise.next() - 0.5) * 0.26                      # round the crest, some in, some out
+        a = noise.next() * math.tau
+        x = int(c + r * c * math.cos(a))
+        y = int(c + r * c * math.sin(a))
+        big = noise.next() < 0.3
+        for dy in range(2 if big else 1):
+            for dx in range(2 if big else 1):
+                if 0 <= x + dx < size and 0 <= y + dy < size:
+                    px[y + dy][x + dx] = (255, 255, 255, 255)
+    for _ in range(14):
+        r = noise.next() * 0.4
+        a = noise.next() * math.tau
+        x = min(size - 1, max(0, int(c + r * c * math.cos(a))))
+        y = min(size - 1, max(0, int(c + r * c * math.sin(a))))
+        px[y][x] = (255, 255, 255, 255)
     return px
 
 
@@ -238,12 +288,18 @@ def ring(size: int = 64):
 
 
 def main(argv) -> int:
-    write_png(ASSETS / "textures/skin.png", 256, 8, skin())
-    write_png(ASSETS / "textures/lines.png", 256, 256, lines())
-    write_png(ASSETS / "textures/foam.png", 128, 128, foam())
-    write_png(ASSETS / "textures/bubble.png", 32, 32, bubble())
+    for frame in (0, 1):
+        write_png(ASSETS / f"textures/skin_{frame}.png", ACROSS, ALONG, skin(frame))
+        write_png(ASSETS / f"textures/lines_{frame}.png", ACROSS, ALONG, lines(frame))
+        write_png(ASSETS / f"textures/foam_{frame}.png", int(FOAM_TILE * PX), int(FOAM_TILE * PX), foam(frame))
+    for frame in (0, 1, 2):
+        write_png(ASSETS / f"textures/flecks_{frame}.png", 64, 64, flecks(frame))
+    write_png(ASSETS / "textures/bubble.png", PX, PX, bubble())
     write_png(ASSETS / "textures/ring.png", 64, 64, ring())
-    print("textures: skin.png (256x8), lines.png (256x256), foam.png (128x128), bubble.png (32x32), ring.png (64x64)")
+    for stale in ("skin.png", "lines.png", "foam.png", "flecks.png"):
+        (ASSETS / "textures" / stale).unlink(missing_ok=True)
+    print(f"textures: skin_0/1 ({ACROSS}x{ALONG}), lines_0/1 ({ACROSS}x{ALONG}), foam_0/1 ({int(FOAM_TILE * PX)}x{int(FOAM_TILE * PX)}), "
+          f"flecks_0/1/2 (64x64), bubble ({PX}x{PX}), ring (64x64)")
     return 0
 
 

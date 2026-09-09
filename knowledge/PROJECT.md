@@ -32,16 +32,17 @@ modpack as a client-only file.
   per craft, spray, the tables built off-thread and warmed at setup),
   `client/SplashTracker` (dry-last-tick, wet-now = a splash), `client/Mass`,
   `client/WakeRenderer` (`RenderLevelStageEvent.AFTER_TRANSLUCENT_BLOCKS`,
-  `RenderType.entityTranslucent`: the mesh drawn as skin, lines and foam,
-  the bubbles as billboards, the splash rings).
+  `RenderType.entityTranslucent`: the mesh drawn as skin, lines and foam
+  with two texture frames each cycled every four ticks, the bubbles as
+  billboards, the splash rings with three frames of foam flecks).
 - `gametest`: the photo booth only (`WakeBooth`, `BoothMod`); it creates a
   flat world through `WorldOpenFlows.createFreshLevel`, digs a pool, drives
   a boat, swims a cow, drops items, photographs, writes verdict lines.
-- `devtools/art/build.py`: the skin, lines, foam, bubble and ring textures, procedural.
+- `devtools/art/build.py`: every texture, procedural, at sixteen pixels to the block: skin, lines and foam in two frames, flecks in three, the bubble and the ring.
 
 ## How it is verified
 
-`./gradlew build`: 56 JUnit tests on `domain`; the booth's nine checks and
+`./gradlew build`: 58 JUnit tests on `domain`; the booth's nine checks and
 twelve photographs (`-PskipBooth` to omit), the last four of them the
 booth's own player wading and driving; the at-speed checks assert relief
 (a bow wave over a tenth of a block, a leaning normal) and bubbles. The
@@ -54,7 +55,9 @@ D-0001 client-only, geometry not particles for the trail, the Kelvin
 angle, sampling positions not velocity; D-0002 the booth makes its own
 world; D-0003 the cel-shaded flat look (superseded); D-0004 the wake as
 a surface in relief with the Wind Waker treatment, after Rusty's "2D,
-flat, messy" verdict and the King of Red Lions screenshot.
+flat, messy" verdict and the King of Red Lions screenshot; D-0005 pixel
+foam at the game's density, animated, the wake scaled to a rowboat, a
+splash foaming by its weight, the nose hidden under the body.
 
 ## Next
 
@@ -65,5 +68,7 @@ look (D-0003), swimmers at 0.9 strength with a floor, the player-driven
 booth act. 2.0.0 the same day after "the wake is 2D, its fuckin flat ... the white
 doesn't even look like foam" and "Compare to windwaker": the relief, the
 pale edged sheet, chevron lines, bubble foam, the bow burst, the pointed
-outline (D-0004). Open: the look in the pack under Iris, which only
-Rusty can judge; the outer sheet on a hard turn.
+outline (D-0004). 2.1.0 after "a bit too large", the splash-foam ask, the wader and bow
+screenshots and the triangle report (D-0005). Open: the look in the
+pack under Iris, which only Rusty can judge; the outer sheet on a hard
+turn; a ring that is not a perfect circle.

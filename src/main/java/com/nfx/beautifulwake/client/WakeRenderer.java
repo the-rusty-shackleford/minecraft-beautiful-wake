@@ -64,7 +64,8 @@ import org.joml.Vector3f;
  *   <li>the <em>bubbles</em>: the bow's burst, each a billboard facing the
  *       camera, standing up out of the water.</li>
  * </ol>
- * Splash rings are drawn first, under everything. Every vertex takes the
+ * Splash rings are drawn first, under everything, and their foam flecks
+ * over them. Every vertex takes the
  * water's own light, so a wake in a cave is as dark as the cave. Nothing
  * is buffered between frames; the mesh is rebuilt each frame from the
  * trail, a couple of thousand vertices per craft at most.
@@ -72,12 +73,27 @@ import org.joml.Vector3f;
 public final class WakeRenderer {
     private WakeRenderer() {}
 
-    private static final ResourceLocation SKIN = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/skin.png");
-    private static final ResourceLocation LINES = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/lines.png");
-    private static final ResourceLocation FOAM = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/foam.png");
-    private static final ResourceLocation BUBBLE = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/bubble.png");
-    private static final ResourceLocation RING = ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/ring.png");
+    /**
+     * The foam is animated by frames: the edge line, the chevron lines and
+     * the churn each have two, the pixels stepped differently, shown turn
+     * and turn about every {@link #FRAME_TICKS} ticks so the foam shimmers
+     * and boils; the splash flecks have three, cycled per splash.
+     */
+    private static final RenderType[] SKIN = frames("skin", 2);
+    private static final RenderType[] LINES = frames("lines", 2);
+    private static final RenderType[] FOAM = frames("foam", 2);
+    private static final RenderType[] FLECKS = frames("flecks", 3);
+    private static final RenderType BUBBLE = RenderType.entityTranslucent(texture("bubble"));
+    private static final RenderType RING = RenderType.entityTranslucent(texture("ring"));
+    /** Ticks each frame of the wake's foam is shown for. */
+    private static final int FRAME_TICKS = 4;
+    /** Ticks each frame of a splash's flecks is shown for. */
+    private static final int FLECK_FRAME_TICKS = 3;
     private static final double RING_LIFT = 0.02;
+    /** The foam sits on the ring. */
+    private static final double FLECK_LIFT = 0.025;
+    /** A splash this strong gets a second sprinkling of flecks, turned a quarter, for twice the foam. */
+    private static final double DOUBLE_FLECKS_FROM = 1.6;
     /** Vertices across the mesh: odd, so a column runs down the track and the chevrons meet in a point. */
     private static final int COLUMNS = 25;
     /**
@@ -89,6 +105,18 @@ public final class WakeRenderer {
     private static final float EDGE_SPAN = (float) (EDGE_OUTSIDE - WakeMesh.EDGE_INSIDE);
     private static int lastQuadCount = 0;
     private static int lastBubbleCount = 0;
+
+    private static ResourceLocation texture(String name) {
+        return ResourceLocation.fromNamespaceAndPath(BeautifulWake.MOD_ID, "textures/" + name + ".png");
+    }
+
+    private static RenderType[] frames(String name, int count) {
+        RenderType[] types = new RenderType[count];
+        for (int i = 0; i < count; i++) {
+            types[i] = RenderType.entityTranslucent(texture(name + "_" + i));
+        }
+        return types;
+    }
 
     /** effects: returns how many quads the last frame drew across every pass; for the booth's eyes */
     public static int lastQuadCount() {
@@ -125,9 +153,8 @@ public final class WakeRenderer {
         int quads = 0;
         int bubbles = 0;
 
-        RenderType rings = RenderType.entityTranslucent(RING);
-        quads += drawRings(buffers.getBuffer(rings), pose, level, now + partial);
-        buffers.endBatch(rings);
+        quads += drawRings(buffers, pose, level, now + partial);
+        int frame = (int) ((now / FRAME_TICKS) % 2);
 
         List<WakeMesh.Mesh> meshes = new ArrayList<>();
         List<WakeTracker.Tracked> crafts = new ArrayList<>();
@@ -142,35 +169,31 @@ public final class WakeRenderer {
         }
 
         if (skin) {
-            RenderType type = RenderType.entityTranslucent(SKIN);
-            VertexConsumer consumer = buffers.getBuffer(type);
+            VertexConsumer consumer = buffers.getBuffer(SKIN[frame]);
             for (WakeMesh.Mesh mesh : meshes) {
                 quads += drawMesh(consumer, pose, level, mesh, Pass.SKIN);
             }
-            buffers.endBatch(type);
+            buffers.endBatch(SKIN[frame]);
         }
         if (lines) {
-            RenderType type = RenderType.entityTranslucent(LINES);
-            VertexConsumer consumer = buffers.getBuffer(type);
+            VertexConsumer consumer = buffers.getBuffer(LINES[frame]);
             for (WakeMesh.Mesh mesh : meshes) {
                 quads += drawMesh(consumer, pose, level, mesh, Pass.LINES);
             }
-            buffers.endBatch(type);
+            buffers.endBatch(LINES[frame]);
         }
         if (foam) {
-            RenderType type = RenderType.entityTranslucent(FOAM);
-            VertexConsumer consumer = buffers.getBuffer(type);
+            VertexConsumer consumer = buffers.getBuffer(FOAM[frame]);
             for (WakeMesh.Mesh mesh : meshes) {
                 quads += drawMesh(consumer, pose, level, mesh, Pass.FOAM);
             }
-            buffers.endBatch(type);
+            buffers.endBatch(FOAM[frame]);
 
-            RenderType bubbleType = RenderType.entityTranslucent(BUBBLE);
-            VertexConsumer bubbleConsumer = buffers.getBuffer(bubbleType);
+            VertexConsumer bubbleConsumer = buffers.getBuffer(BUBBLE);
             for (WakeTracker.Tracked tracked : crafts) {
                 bubbles += drawBubbles(bubbleConsumer, pose, level, camera, tracked.foam(), now, partial);
             }
-            buffers.endBatch(bubbleType);
+            buffers.endBatch(BUBBLE);
         }
         pose.popPose();
         lastQuadCount = quads;
@@ -308,36 +331,74 @@ public final class WakeRenderer {
 
     /**
      * The splash rings: one square each, the ring texture across it, as wide
-     * as twice the ring's radius this frame and as faint as its age makes it.
+     * as twice the ring's radius this frame and as faint as its age makes it,
+     * then the foam flecks over each ring that has any, as opaque as the
+     * splash's foam. The flecks cycle through their frames every few ticks,
+     * each splash starting on its own frame and turned its own quarter, so
+     * no two splashes foam alike and none sits still; a heavy splash gets a
+     * second square turned another quarter, for twice the foam.
      */
-    private static int drawRings(VertexConsumer consumer, PoseStack pose, ClientLevel level, double now) {
+    private static int drawRings(MultiBufferSource.BufferSource buffers, PoseStack pose, ClientLevel level, double now) {
         PoseStack.Pose last = pose.last();
         int drawn = 0;
+        VertexConsumer rings = buffers.getBuffer(RING);
         for (Ripple ripple : SplashTracker.ripples()) {
             long age = Math.max(0L, (long) Math.floor(now - ripple.born()));
             if (age > SplashTracker.RING_LIFE_TICKS) {
                 continue;
             }
-            float radius = (float) Splash.ringRadius(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS);
-            int alpha = Math.round((float) Splash.ringAlpha(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS) * 255.0f);
+            int alpha = (int) Math.round(Splash.ringAlpha(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS) * 255.0);
             if (alpha == 0) {
                 continue;
             }
-            float x = (float) ripple.x();
-            float y = (float) (ripple.surfaceY() + RING_LIFT);
-            float z = (float) ripple.z();
-            int light = LevelRenderer.getLightColor(level, BlockPos.containing(ripple.x(), ripple.surfaceY() + 0.5, ripple.z()));
-            float[][] corners = {{-radius, -radius, 0, 0}, {radius, -radius, 1, 0}, {radius, radius, 1, 1}, {-radius, radius, 0, 1}};
-            for (float[] c : corners) {
-                consumer.addVertex(last, x + c[0], y, z + c[1])
-                        .setColor(255, 255, 255, alpha)
-                        .setUv(c[2], c[3])
-                        .setOverlay(OverlayTexture.NO_OVERLAY)
-                        .setLight(light)
-                        .setNormal(last, 0.0f, 1.0f, 0.0f);
+            float radius = (float) Splash.ringRadius(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS);
+            drawn += square(rings, last, ripple, RING_LIFT, radius, alpha, light(level, ripple), 0);
+        }
+        buffers.endBatch(RING);
+        for (int frame = 0; frame < FLECKS.length; frame++) {
+            VertexConsumer flecks = buffers.getBuffer(FLECKS[frame]);
+            for (Ripple ripple : SplashTracker.ripples()) {
+                long age = Math.max(0L, (long) Math.floor(now - ripple.born()));
+                if (age > SplashTracker.RING_LIFE_TICKS || (age / FLECK_FRAME_TICKS + ripple.born()) % FLECKS.length != frame) {
+                    continue;
+                }
+                int alpha = (int) Math.round(Splash.foamAlpha(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS) * 255.0);
+                if (alpha == 0) {
+                    continue;
+                }
+                float radius = (float) Splash.ringRadius(ripple.strength(), age, SplashTracker.RING_LIFE_TICKS);
+                int turn = (int) (ripple.born() % 4);
+                int light = light(level, ripple);
+                drawn += square(flecks, last, ripple, FLECK_LIFT, radius, alpha, light, turn);
+                if (ripple.strength() >= DOUBLE_FLECKS_FROM) {
+                    drawn += square(flecks, last, ripple, FLECK_LIFT, radius, alpha, light, turn + 1);
+                }
             }
-            drawn++;
+            buffers.endBatch(FLECKS[frame]);
         }
         return drawn;
+    }
+
+    private static int light(ClientLevel level, Ripple ripple) {
+        return LevelRenderer.getLightColor(level, BlockPos.containing(ripple.x(), ripple.surfaceY() + 0.5, ripple.z()));
+    }
+
+    /** One square on the water over {@code ripple}, {@code lift} above it, {@code radius} to each side, its texture turned {@code quarterTurns}. */
+    private static int square(VertexConsumer consumer, PoseStack.Pose pose, Ripple ripple, double lift, float radius, int alpha, int light, int quarterTurns) {
+        float x = (float) ripple.x();
+        float y = (float) (ripple.surfaceY() + lift);
+        float z = (float) ripple.z();
+        float[][] corners = {{-radius, -radius, 0, 0}, {radius, -radius, 1, 0}, {radius, radius, 1, 1}, {-radius, radius, 0, 1}};
+        for (int i = 0; i < 4; i++) {
+            float[] c = corners[i];
+            float[] uv = corners[(i + quarterTurns) % 4];
+            consumer.addVertex(pose, x + c[0], y, z + c[1])
+                    .setColor(255, 255, 255, alpha)
+                    .setUv(uv[2], uv[3])
+                    .setOverlay(OverlayTexture.NO_OVERLAY)
+                    .setLight(light)
+                    .setNormal(pose, 0.0f, 1.0f, 0.0f);
+        }
+        return 1;
     }
 }

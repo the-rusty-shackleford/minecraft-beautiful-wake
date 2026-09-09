@@ -69,33 +69,41 @@ public final class WakeField {
     private static final double CHEVRON_COS = Math.cos(CHEVRON_ANGLE);
     private static final double CHEVRON_SIN = Math.sin(CHEVRON_ANGLE);
 
-    /** How far ahead of the hull's centre the V comes to its point, in hull widths: the bow, and a little. */
-    public static final double POINT_AHEAD = 0.9;
+    /** How far ahead of a hull's centre its outline's nose reaches, in hull widths: under the bow, where the boat hides it. */
+    public static final double HULL_NOSE = 0.45;
+    /** The same for a swimmer: inside the body, so nothing shows ahead of a wader. */
+    public static final double SWIMMER_NOSE = 0.35;
 
     /**
      * effects: returns how far to either side of the track the wake reaches
      * {@code d} blocks behind the hull's centre: a little over half a hull
      * there, opening at the Kelvin angle behind it, and ahead of it
-     * narrowing to a point {@link #POINT_AHEAD} hulls ahead -- the outline
-     * hugs the hull and comes to a point at the bow, so nothing squared-off
-     * shows round the boat
+     * rounding off in a half-ellipse to nothing {@code nose} hulls ahead --
+     * the outline hugs the hull and rounds off at the bow like the water
+     * round a wader's legs, so nothing squared-off or pointed shows round
+     * the body<br>
+     * throws: {@link IllegalArgumentException} if {@code nose <= 0}
      */
-    public static double halfWidth(double hull, double d) {
+    public static double halfWidth(double hull, double nose, double d) {
+        if (!(nose > 0.0)) {
+            throw new IllegalArgumentException("nose must be > 0, was " + nose);
+        }
         if (d < 0.0) {
-            return hull * 0.65 * Math.max(0.0, 1.0 + d / (hull * POINT_AHEAD));
+            double along = -d / (hull * nose);
+            return along >= 1.0 ? 0.0 : hull * 0.65 * Math.sqrt(1.0 - along * along);
         }
         return hull * 0.65 + d * TAN;
     }
 
     /**
      * effects: returns 1 inside the V at {@code (d, s)}, falling smoothly to
-     * 0 over {@link #EDGE} blocks outside it, and 0 at its point and ahead
+     * 0 over {@link #EDGE} blocks outside it, and 0 at its nose's tip and ahead
      */
-    public static double edgeFade(double hull, double d, double s) {
-        if (d <= -hull * POINT_AHEAD) {
+    public static double edgeFade(double hull, double nose, double d, double s) {
+        if (d <= -hull * nose) {
             return 0.0;
         }
-        double outside = Math.abs(s) - halfWidth(hull, d);
+        double outside = Math.abs(s) - halfWidth(hull, nose, d);
         if (outside <= 0.0) {
             return 1.0;
         }
@@ -121,18 +129,18 @@ public final class WakeField {
 
     /**
      * effects: returns the water's height above the still surface at
-     * {@code (d, s)} for a hull {@code hull} wide making a wake of
-     * {@code intensity} at {@code relief}; the pattern stands still in the
-     * hull's frame, as a wake's does<br>
+     * {@code (d, s)} for a hull {@code hull} wide with a nose {@code nose}
+     * hulls long making a wake of {@code intensity} at {@code relief}; the
+     * pattern stands still in the hull's frame, as a wake's does<br>
      * throws: {@link IllegalArgumentException} if {@code hull <= 0},
      * {@code intensity} is outside {@code [0, 1]} or {@code relief < 0}
      */
-    public static double height(double hull, double intensity, double relief, double d, double s) {
+    public static double height(double hull, double nose, double intensity, double relief, double d, double s) {
         check(hull, intensity, relief);
         if (intensity == 0.0 || relief == 0.0) {
             return 0.0;
         }
-        double edge = edgeFade(hull, d, s);
+        double edge = edgeFade(hull, nose, d, s);
         if (edge == 0.0) {
             return 0.0;
         }
@@ -140,7 +148,7 @@ public final class WakeField {
         // The bow wave: a hump at the bow, the hull's width. Distances are
         // from the hull's centre, which is where a trail samples it; the bow
         // is half a hull ahead of that and the stern half a hull behind.
-        double bowD = (d + hull * 0.35) / (hull * 0.4);
+        double bowD = (d + hull * 0.3) / (hull * 0.4);
         double bowS = s / (hull * 0.45);
         double bow = BOW_HEIGHT * Math.exp(-bowD * bowD - bowS * bowS);
         double trough = 0.0;
@@ -185,12 +193,12 @@ public final class WakeField {
      * throws: {@link IllegalArgumentException} if {@code hull <= 0} or
      * {@code intensity} is outside {@code [0, 1]}
      */
-    public static double foam(double hull, double intensity, double d, double s) {
+    public static double foam(double hull, double nose, double intensity, double d, double s) {
         check(hull, intensity, 1.0);
         if (intensity == 0.0) {
             return 0.0;
         }
-        double edge = edgeFade(hull, d, s);
+        double edge = edgeFade(hull, nose, d, s);
         if (edge == 0.0) {
             return 0.0;
         }
@@ -201,10 +209,11 @@ public final class WakeField {
         double churnWidth = hull * (0.55 + 0.05 * Math.max(0.0, stern));
         double rise = Math.max(0.0, Math.min(1.0, (d + hull * 0.1) / (hull * 0.6)));
         double churn = rise * Math.exp(-Math.pow(a / churnWidth, 4.0)) * Math.exp(-Math.max(0.0, stern) / (hull * 4.5));
-        // The bow's shoulders: a patch either side of the bow.
-        double shoulderD = (d + hull * 0.35) / (hull * 0.4);
-        double shoulderS = (a - hull * 0.5) / (hull * 0.28);
-        double shoulder = 0.9 * Math.exp(-shoulderD * shoulderD - shoulderS * shoulderS);
+        // The bow's shoulders: foam breaking either side of the bow and
+        // streaming back along the hull's sides, thickest at the bow.
+        double shoulderD = (d + hull * 0.3) / (hull * 0.5);
+        double shoulderS = (a - hull * 0.52) / (hull * 0.3);
+        double shoulder = Math.exp(-shoulderD * shoulderD - shoulderS * shoulderS);
         return Math.min(1.0, edge * Math.sqrt(intensity) * (churn + shoulder));
     }
 

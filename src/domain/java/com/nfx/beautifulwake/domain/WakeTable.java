@@ -24,8 +24,8 @@ package com.nfx.beautifulwake.domain;
  * rebuilt every frame for every craft in sight. A table is built once per
  * hull width -- a few boats' and a few animals' -- and read from then on.
  *
- * <p>Sampled on a grid {@link #STEP} blocks apart, {@code d} from the V's
- * point ahead of the hull to {@link #REACH} behind it and {@code s} from
+ * <p>Sampled on a grid {@link #STEP} blocks apart, {@code d} from the
+ * nose's tip ahead of the hull to {@link #REACH} behind it and {@code s} from
  * the track out to the V's edge there, and read back bilinearly; the
  * field is symmetric about the track, so only starboard is kept. The
  * intensity is applied by the reader -- heights scale with it and foam
@@ -45,6 +45,7 @@ public final class WakeTable {
     public static final double REACH = 48.0;
 
     private final double hull;
+    private final double nose;
     private final double dFrom;
     private final int nd;
     private final int ns;
@@ -53,11 +54,12 @@ public final class WakeTable {
     private final float[] slopeS;
     private final float[] foam;
 
-    private WakeTable(double hull) {
+    private WakeTable(double hull, double nose) {
         this.hull = hull;
-        this.dFrom = -hull * WakeField.POINT_AHEAD - STEP;
+        this.nose = nose;
+        this.dFrom = -hull * nose - STEP;
         this.nd = (int) Math.ceil((REACH - dFrom) / STEP) + 1;
-        double sMax = WakeField.halfWidth(hull, REACH) + WakeField.EDGE + STEP;
+        double sMax = WakeField.halfWidth(hull, nose, REACH) + WakeField.EDGE + STEP;
         this.ns = (int) Math.ceil(sMax / STEP) + 1;
         this.height = new float[nd * ns];
         this.slopeD = new float[nd * ns];
@@ -68,8 +70,8 @@ public final class WakeTable {
             for (int j = 0; j < ns; j++) {
                 double s = j * STEP;
                 int at = i * ns + j;
-                height[at] = (float) WakeField.height(hull, 1.0, 1.0, d, s);
-                foam[at] = (float) WakeField.foam(hull, 1.0, d, s);
+                height[at] = (float) WakeField.height(hull, nose, 1.0, 1.0, d, s);
+                foam[at] = (float) WakeField.foam(hull, nose, 1.0, d, s);
             }
         }
         // Slopes from the grid's own neighbours: across the track the
@@ -88,19 +90,29 @@ public final class WakeTable {
     }
 
     /**
-     * effects: returns the field tabulated for a hull {@code hull} wide<br>
-     * throws: {@link IllegalArgumentException} if {@code hull <= 0}
+     * effects: returns the field tabulated for a hull {@code hull} wide with a nose {@code nose} hulls long<br>
+     * throws: {@link IllegalArgumentException} if {@code hull <= 0} or {@code nose <= 0}
      */
-    public static WakeTable of(double hull) {
-        if (!(hull > 0.0) || Double.isInfinite(hull)) {
-            throw new IllegalArgumentException("hull must be finite and > 0, was " + hull);
+    public static WakeTable of(double hull, double nose) {
+        if (!(hull > 0.0) || Double.isInfinite(hull) || !(nose > 0.0) || Double.isInfinite(nose)) {
+            throw new IllegalArgumentException("hull and nose must be finite and > 0, were " + hull + " and " + nose);
         }
-        return new WakeTable(hull);
+        return new WakeTable(hull, nose);
+    }
+
+    /** effects: returns whether this table was built for {@code p}'s hull and nose */
+    public boolean fits(WakeParams p) {
+        return hull == p.hullWidth() && nose == p.nose();
     }
 
     /** effects: returns the hull width this was built for */
     public double hull() {
         return hull;
+    }
+
+    /** effects: returns the nose length this was built for, in hulls */
+    public double nose() {
+        return nose;
     }
 
     /** effects: returns the height at {@code (d, s)} at full intensity and relief */

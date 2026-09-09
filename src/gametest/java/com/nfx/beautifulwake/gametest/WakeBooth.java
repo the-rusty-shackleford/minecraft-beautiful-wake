@@ -22,6 +22,7 @@ import com.nfx.beautifulwake.client.SplashTracker;
 import com.nfx.beautifulwake.client.WakeRenderer;
 import com.nfx.beautifulwake.client.WakeTracker;
 import com.nfx.beautifulwake.domain.Ripple;
+import com.nfx.beautifulwake.domain.Splash;
 import com.nfx.beautifulwake.domain.Wake;
 import com.nfx.beautifulwake.domain.WakeMesh;
 import java.util.ArrayList;
@@ -304,7 +305,15 @@ public final class WakeBooth {
             double apple = ripples.get(ripples.size() - 3).strength();
             double ingot = ripples.get(ripples.size() - 2).strength();
             double block = ripples.get(ripples.size() - 1).strength();
-            return apple < ingot && ingot < block ? null : "apple " + apple + " ingot " + ingot + " block " + block;
+            if (!(apple < ingot && ingot < block)) {
+                return "apple " + apple + " ingot " + ingot + " block " + block;
+            }
+            // The apple's ring has no foam on it; the ingot's some, the block's more.
+            double appleFoam = Splash.foamAlpha(apple, 0, SplashTracker.RING_LIFE_TICKS);
+            double ingotFoam = Splash.foamAlpha(ingot, 0, SplashTracker.RING_LIFE_TICKS);
+            double blockFoam = Splash.foamAlpha(block, 0, SplashTracker.RING_LIFE_TICKS);
+            return appleFoam == 0.0 && ingotFoam > 0.0 && blockFoam > ingotFoam
+                    ? null : "foam: apple " + appleFoam + " ingot " + ingotFoam + " block " + blockFoam;
         })));
         // The boat stopped at tick 330; its foam lives four seconds. Two ticks
         // past that, nothing of it should be drawn.
